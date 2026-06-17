@@ -1,0 +1,28 @@
+# Compiled binary
+ayatika
+*.o
+*.out
+*.exe
+
+# Runtime-generated data (not committed — created on first run)
+data/quran.json
+data/translation_en.json
+data/translation_bn.json
+data/hadiths.json
+data/almaktaba.db
+data/*.db
+data/config.ini
+
+# Keep the data/ folder structure but ignore its generated contents
+!data/.gitkeep
+
+# Editor / OS junk
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+build/
+*.dSYM/

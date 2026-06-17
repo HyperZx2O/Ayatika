@@ -1,0 +1,169 @@
+#ifndef QURAN_H
+#define QURAN_H
+
+#include <raylib.h>
+
+/* ============================================================
+ * AYATIKA — SHARED HEADER
+ * Owned by: Backend Engineer
+ * Used by:  Frontend Engineer, Systems & Features Engineer
+ *
+ * This file defines every struct and function signature shared
+ * across the project. Any change here must be discussed with
+ * the whole team before committing — see ARCHITECTURE.md.
+ * ============================================================ */
+
+#define MAX_SEARCH_RESULTS 15
+#define TOTAL_SURAHS       114
+
+/* ── Core data structures ── */
+
+typedef struct {
+    int    number;                 /* 1–114 */
+    char   name[64];                /* e.g. "Al-Fatiha" */
+    char   arabicName[128];         /* e.g. "الفاتحة" */
+    char   meaning[128];             /* e.g. "The Opening" */
+    char   revelationType[16];      /* "Meccan" or "Medinan" */
+    int    ayahCount;
+    char   context[512];            /* short backstory for the overview card */
+} Surah;
+
+typedef struct {
+    int    surahNumber;
+    int    ayahNumber;
+    char   arabicText[2048];
+    char   translationEn[2048];
+    char   translationBn[2048];
+    char   audioUrl[256];           /* CDN URL for recitation */
+} Ayah;
+
+typedef struct {
+    int    id;
+    int    surahNumber;
+    int    ayahNumber;
+    char   tag[128];
+    char   note[1024];
+    long   timestamp;
+} Bookmark;
+
+typedef struct {
+    char   name[64];
+    char   text[1024];
+    char   narrator[128];
+    char   collection[32];          /* "Bukhari" or "Muslim" */
+} Hadith;
+
+typedef struct {
+    float  fajr;
+    float  sunrise;
+    float  dhuhr;
+    float  asr;
+    float  maghrib;
+    float  isha;
+    char   fajrStr[16];
+    char   sunriseStr[16];
+    char   dhuhrStr[16];
+    char   asrStr[16];
+    char   maghribStr[16];
+    char   ishaStr[16];
+    int    prohibitedActive;        /* 1 if currently in a prohibited time */
+    char   prohibitedLabel[64];
+} PrayerTimes;
+
+typedef struct {
+    int    score;
+    int    surahNumber;
+    int    ayahNumber;
+    char   preview[120];            /* first ~120 chars of matching translation */
+} SearchResult;
+
+typedef enum {
+    SCREEN_DASHBOARD = 0,
+    SCREEN_SURAH_LIST,
+    SCREEN_AYAH_READER,
+    SCREEN_SEARCH,
+    SCREEN_BOOKMARKS,
+    SCREEN_SCREENSAVER,
+    SCREEN_SURAH_OVERVIEW
+} AppScreen;
+
+/* ── Application state — accumulates fields from all 3 members.
+ *    Discuss with the team before adding/removing a field. ── */
+
+typedef struct {
+    /* Navigation */
+    int            currentSurah;
+    int            currentAyah;
+    int            cursorSurah;       /* highlighted item in sidebar */
+    AppScreen      currentScreen;
+    AppScreen      previousScreen;
+
+    /* Data (Backend) */
+    Surah         *surahs;             /* array of 114 */
+    Ayah          *ayahs;               /* flat array of all ayahs */
+    int            totalAyahs;
+    Hadith        *hadiths;
+    int            totalHadiths;
+
+    /* Prayer (Backend) */
+    PrayerTimes    prayer;
+    double         lastPrayerUpdate;
+
+    /* UI (Frontend) */
+    int            currentTheme;
+    int            focusMode;          /* 1 = dimmed background active */
+    int            showHelp;
+    char           statusMsg[256];
+
+    /* Audio (Systems) */
+    int            isPlayingRecitation;
+    int            isNatureSoundOn;
+
+    /* Idle / screensaver (Systems) */
+    double         lastInputTime;
+    int            catVisible;
+
+    /* Search (Systems) */
+    char           searchQuery[256];
+    SearchResult   searchResults[MAX_SEARCH_RESULTS];
+    int            searchResultCount;
+
+    /* Config (Backend) */
+    float          latitude;
+    float          longitude;
+    int            calcMethod;          /* 0 = Karachi, 1 = MWL, 2 = ISNA */
+    char           language[8];         /* "en" or "bn" */
+} AppState;
+
+/* ============================================================
+ * PUBLIC API — Backend Engineer implements these
+ * ============================================================ */
+
+/* quran.c */
+int    loadQuranData(AppState *state);
+Ayah  *getAyah(AppState *state, int surahNum, int ayahNum);
+int    getAyahIndex(AppState *state, int surahNum, int ayahNum);
+int    getDailyAyahIndex(void);
+
+/* prayer.c */
+void   updatePrayerTimes(AppState *state);
+int    isProhibitedTime(PrayerTimes *pt);
+char  *getNextPrayerName(PrayerTimes *pt);
+float  getNextPrayerTime(PrayerTimes *pt);
+char  *formatCountdown(float targetTime);
+
+/* db.c */
+int    initDatabase(void);
+int    saveBookmark(Bookmark *bm);
+int    loadBookmarks(Bookmark *out, int maxCount);
+int    deleteBookmark(int id);
+int    bookmarkExists(int surahNum, int ayahNum);
+
+/* surah_meta.c */
+void   getSurahMeta(int surahNum, Surah *out);
+
+/* config.c (part of Backend's db.c or a separate config.c) */
+void   loadConfig(AppState *state);
+void   saveConfig(AppState *state);
+
+#endif /* QURAN_H */
