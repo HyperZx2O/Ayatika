@@ -1,5 +1,6 @@
 # Compiled binary
 ayatika
+tests/test_phase1
 *.o
 *.out
 *.exe
@@ -26,3 +27,7 @@ Thumbs.db
 # Build artifacts
 build/
 *.dSYM/
+
+# Project planning / agent instructions
+context/
+AGENTS.md
