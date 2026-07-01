@@ -1,27 +1,50 @@
-/* ============================================================
- * main.c — Entry point and main game loop
- * Owned by: Frontend Engineer
- *
- * Responsibilities:
- *   - Initialize the RayLib window and audio device
- *   - Load config, Quran data, database (Backend functions)
- *   - Initialize themes, fonts, audio, screensaver
- *   - Run the main update/draw loop
- *   - Handle clean shutdown
- *
- * See member2.md for the full implementation plan.
- * ============================================================ */
-
 #include <raylib.h>
-#include "quran.h"
+#include <stdlib.h>
+#include <string.h>
+#include "mock_data.h"
+#include "ui.h"
+#include "theme.h"
+#include "input.h"
 
 int main(void) {
-    /* TODO: InitWindow, InitAudioDevice */
-    /* TODO: loadConfig, loadQuranData, initDatabase (Backend) */
-    /* TODO: initThemes, initFonts (Frontend) */
-    /* TODO: initAudio, initScreensaver (Systems) */
-    /* TODO: main loop — update() then draw() */
-    /* TODO: saveConfig, closeAudio, CloseWindow on exit */
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    InitWindow(1280, 720, "Ayatika — القرآن الكريم");
+    SetTargetFPS(60);
+    SetExitKey(0);
 
+    AppState state;
+    memset(&state, 0, sizeof(AppState));
+    state.currentScreen = SCREEN_DASHBOARD;
+    state.currentTheme  = 0;
+    state.lastInputTime = GetTime();
+    strncpy(state.language, "en", 7);
+
+    loadMockData(&state);
+    initThemes();
+    initFonts();
+
+    while (!WindowShouldClose()) {
+        if (isAnyKeyPressed() || GetMouseDelta().x != 0 || GetMouseDelta().y != 0)
+            state.lastInputTime = GetTime();
+
+        double idleSeconds = GetTime() - state.lastInputTime;
+        state.catVisible = (idleSeconds > 120.0);
+
+        /* Phase 2: placeholder for backend calls */
+        /* TODO: updatePrayerTimes(&state); */
+        /* Phase 2: placeholder for systems calls */
+        /* TODO: updateAudio(&state); */
+
+        handleInput(&state);
+
+        BeginDrawing();
+            ClearBackground(getTheme(state.currentTheme)->background);
+            drawCurrentScreen(&state);
+            if (state.showHelp) drawHelpOverlay(&state);
+        EndDrawing();
+    }
+
+    closeFonts();
+    CloseWindow();
     return 0;
 }
