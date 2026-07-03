@@ -1,6 +1,8 @@
 #include <raylib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <fribidi/fribidi.h>
 #include "ui.h"
 #include "theme.h"
 
@@ -8,13 +10,17 @@ Font arabicFont;
 Font uiFont;
 
 void initFonts(void) {
-    /* Phase 3: arabicFont = LoadFontEx("assets/Amiri.ttf", 48, NULL, 0x10FFFF); */
-    /* Phase 3: SetTextureFilter(arabicFont.texture, TEXTURE_FILTER_BILINEAR); */
+    arabicFont = LoadFontEx("assets/Amiri.ttf", 48, NULL, 0x10FFFF);
+    if (arabicFont.texture.id > 0)
+        SetTextureFilter(arabicFont.texture, TEXTURE_FILTER_BILINEAR);
+    else
+        arabicFont = GetFontDefault(); /* fallback if file missing */
     uiFont = GetFontDefault();
 }
 
 void closeFonts(void) {
-    /* Phase 3: UnloadFont(arabicFont); */
+    if (arabicFont.texture.id > 0 && arabicFont.texture.id != uiFont.texture.id)
+        UnloadFont(arabicFont);
 }
 
 void drawCurrentScreen(AppState *state) {
@@ -132,14 +138,46 @@ void drawFocusDim(AppState *state) {
     (void)state;
 }
 
+static int reorderArabic(const char *text, char *visualOut, int outSize) {
+    (void)outSize;
+    FriBidiChar logical[2048];
+    FriBidiStrIndex len = fribidi_charset_to_unicode(
+        FRIBIDI_CHAR_SET_UTF8, text, strlen(text), logical);
+    if (len <= 0) { visualOut[0] = '\0'; return 0; }
+    if (len >= 2048) len = 2047;
+
+    FriBidiChar visual[2048];
+    FriBidiParType baseDir = FRIBIDI_PAR_RTL;
+    FriBidiLevel levels[2048];
+    FriBidiStrIndex map[2048];
+    FriBidiLevel maxLevel = fribidi_log2vis(
+        logical, len, &baseDir, visual, map, NULL, levels);
+    (void)maxLevel; (void)map;
+
+    fribidi_unicode_to_charset(FRIBIDI_CHAR_SET_UTF8, visual, len, visualOut);
+    return 1;
+}
+
 void drawArabicText(const char *text, Vector2 pos, float size, Color color) {
-    /* Phase 3: FriBidi reorder + DrawTextEx */
-    DrawTextEx(uiFont, text, pos, size, 1, color);
+    char visual[4096];
+    if (!reorderArabic(text, visual, sizeof(visual))) {
+        DrawTextEx(uiFont, text, pos, size, 1, color);
+        return;
+    }
+    Font f = arabicFont.texture.id > 0 ? arabicFont : uiFont;
+    DrawTextEx(f, visual, pos, size, 1, color);
 }
 
 void drawArabicTextCentered(const char *text, Rectangle bounds, float size, Color color) {
-    /* Phase 3: FriBidi reorder + center + draw */
-    float tw = MeasureTextEx(uiFont, text, size, 1).x;
+    char visual[4096];
+    if (!reorderArabic(text, visual, sizeof(visual))) {
+        float tw = MeasureTextEx(uiFont, text, size, 1).x;
+        Vector2 pos = {bounds.x + (bounds.width - tw) / 2, bounds.y};
+        DrawTextEx(uiFont, text, pos, size, 1, color);
+        return;
+    }
+    Font f = arabicFont.texture.id > 0 ? arabicFont : uiFont;
+    float tw = MeasureTextEx(f, visual, size, 1).x;
     Vector2 pos = {bounds.x + (bounds.width - tw) / 2, bounds.y};
-    DrawTextEx(uiFont, text, pos, size, 1, color);
+    DrawTextEx(f, visual, pos, size, 1, color);
 }

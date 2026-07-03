@@ -111,6 +111,7 @@ typedef struct {
 
     /* UI (Frontend) */
     int            currentTheme;
+    int            dashboardCursor;     /* 0–5, panel focus on dashboard */
     int            focusMode;          /* 1 = dimmed background active */
     int            showHelp;
     char           statusMsg[256];

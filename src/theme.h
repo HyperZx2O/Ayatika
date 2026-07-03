@@ -2,7 +2,7 @@
 #define THEME_H
 
 #include <raylib.h>
-#include "mock_data.h"
+#include "quran.h"
 
 #define THEME_COUNT 3
 

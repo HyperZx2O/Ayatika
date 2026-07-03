@@ -2,6 +2,7 @@
 #define UI_H
 
 #include <raylib.h>
+#include "quran.h"
 #include "mock_data.h"
 
 #define TOPBAR_H    56

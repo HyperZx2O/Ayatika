@@ -33,23 +33,26 @@ static void test_mock_data_loads_correctly(void) {
     memset(&state, 0, sizeof(state));
     loadMockData(&state);
 
-    TEST("loads 5 surahs") {
+    TEST("loads 7 surahs") {
         ASSERT(state.surahs != NULL);
         ASSERT(state.surahs[0].number == 1);
-        ASSERT(state.surahs[4].number == 18);
+        ASSERT(state.surahs[4].number == 114);
+        ASSERT(state.surahs[6].number == 108);
     } ENDTEST;
 
     TEST("surah names are correct") {
         ASSERT(strcmp(state.surahs[0].name, "Al-Fatiha") == 0);
-        ASSERT(strcmp(state.surahs[1].name, "Al-Ikhlas") == 0);
-        ASSERT(strcmp(state.surahs[2].name, "Al-Falaq") == 0);
-        ASSERT(strcmp(state.surahs[3].name, "An-Nas") == 0);
-        ASSERT(strcmp(state.surahs[4].name, "Al-Kahf") == 0);
+        ASSERT(strcmp(state.surahs[1].name, "Al-Baqarah") == 0);
+        ASSERT(strcmp(state.surahs[2].name, "Al-Ikhlas") == 0);
+        ASSERT(strcmp(state.surahs[3].name, "Al-Falaq") == 0);
+        ASSERT(strcmp(state.surahs[4].name, "An-Nas") == 0);
+        ASSERT(strcmp(state.surahs[5].name, "Al-Asr") == 0);
+        ASSERT(strcmp(state.surahs[6].name, "Al-Kawthar") == 0);
     } ENDTEST;
 
     TEST("surah arabic names present") {
         ASSERT(strlen(state.surahs[0].arabicName) > 0);
-        ASSERT(strlen(state.surahs[4].arabicName) > 0);
+        ASSERT(strlen(state.surahs[6].arabicName) > 0);
     } ENDTEST;
 
     TEST("surah revelation types populated") {
@@ -58,13 +61,14 @@ static void test_mock_data_loads_correctly(void) {
 
     TEST("surah ayah counts correct") {
         ASSERT(state.surahs[0].ayahCount == 7);
-        ASSERT(state.surahs[1].ayahCount == 4);
-        ASSERT(state.surahs[3].ayahCount == 6);
+        ASSERT(state.surahs[1].ayahCount == 286);
+        ASSERT(state.surahs[2].ayahCount == 4);
+        ASSERT(state.surahs[4].ayahCount == 6);
     } ENDTEST;
 
     TEST("total ayahs > 0") {
         ASSERT(state.totalAyahs > 0);
-        ASSERT(state.totalAyahs == 27);
+        ASSERT(state.totalAyahs == 20);
     } ENDTEST;
 
     TEST("ayah data integrity") {
