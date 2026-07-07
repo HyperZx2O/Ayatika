@@ -22,7 +22,7 @@ $(TARGET): $(SRC)
 run: $(TARGET)
 	./$(TARGET)
 
-test: test_phase2
+test: test_phase2 test_phase4
 
 test_phase2: tests/test_phase2.c src/mock_data.c src/theme.c
 	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase2.c src/mock_data.c src/theme.c $(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase2
@@ -32,6 +32,10 @@ test_phase3: tests/test_phase3.c src/mock_data.c src/theme.c src/ui.c
 	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase3.c src/mock_data.c src/theme.c src/ui.c $(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase3
 	./tests/test_phase3
 
+test_phase4: tests/test_phase4.c src/mock_data.c src/theme.c src/ui.c
+	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase4.c src/mock_data.c src/theme.c src/ui.c $(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase4
+	./tests/test_phase4
+
 # ── Phase 1: RayLib smoke test ──
 test_phase1: tests/test_phase1.c src/mock_data.c src/mock_data.h
 	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase1.c src/mock_data.c \
@@ -39,4 +43,4 @@ test_phase1: tests/test_phase1.c src/mock_data.c src/mock_data.h
 	./tests/test_phase1
 
 clean:
-	rm -f $(TARGET) tests/test_phase1 tests/test_raylib tests/test_phase2 tests/test_phase3
+	rm -f $(TARGET) tests/test_phase1 tests/test_raylib tests/test_phase2 tests/test_phase3 tests/test_phase4

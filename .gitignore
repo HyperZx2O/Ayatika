@@ -1,6 +1,6 @@
 # Compiled binary
 ayatika
-tests/test_phase1
+tests/test_phase[0-9]
 *.o
 *.out
 *.exe
