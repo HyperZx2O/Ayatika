@@ -12,7 +12,7 @@ BREW_PREFIX = /opt/homebrew
 CFLAGS_BREW = -I$(BREW_PREFIX)/include
 LDFLAGS_BREW = -L$(BREW_PREFIX)/lib
 
-.PHONY: all run test test_phase1 clean
+.PHONY: all run test test_phase1 test_phase5 clean
 
 all: $(TARGET)
 
@@ -22,18 +22,18 @@ $(TARGET): $(SRC)
 run: $(TARGET)
 	./$(TARGET)
 
-test: test_phase2 test_phase4
+test: test_phase2 test_phase4 test_phase5
 
 test_phase2: tests/test_phase2.c src/mock_data.c src/theme.c
 	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase2.c src/mock_data.c src/theme.c $(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase2
 	./tests/test_phase2
 
-test_phase3: tests/test_phase3.c src/mock_data.c src/theme.c src/ui.c
-	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase3.c src/mock_data.c src/theme.c src/ui.c $(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase3
+test_phase3: tests/test_phase3.c src/mock_data.c src/theme.c src/ui.c src/quran.c
+	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase3.c src/mock_data.c src/theme.c src/ui.c src/quran.c $(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase3
 	./tests/test_phase3
 
-test_phase4: tests/test_phase4.c src/mock_data.c src/theme.c src/ui.c
-	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase4.c src/mock_data.c src/theme.c src/ui.c $(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase4
+test_phase4: tests/test_phase4.c src/mock_data.c src/theme.c src/ui.c src/quran.c
+	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase4.c src/mock_data.c src/theme.c src/ui.c src/quran.c $(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase4
 	./tests/test_phase4
 
 # ── Phase 1: RayLib smoke test ──
@@ -42,5 +42,11 @@ test_phase1: tests/test_phase1.c src/mock_data.c src/mock_data.h
 		$(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase1
 	./tests/test_phase1
 
+# ── Phase 5: Dashboard & Surah List ──
+test_phase5: tests/test_phase5.c src/mock_data.c src/theme.c src/ui.c src/quran.c
+	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase5.c src/mock_data.c src/theme.c src/ui.c src/quran.c \
+		$(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase5
+	./tests/test_phase5
+
 clean:
-	rm -f $(TARGET) tests/test_phase1 tests/test_raylib tests/test_phase2 tests/test_phase3 tests/test_phase4
+	rm -f $(TARGET) tests/test_phase1 tests/test_raylib tests/test_phase2 tests/test_phase3 tests/test_phase4 tests/test_phase5
