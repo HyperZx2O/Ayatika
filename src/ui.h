@@ -30,6 +30,7 @@ void drawWaqtPanel(AppState *state);
 void drawHelpOverlay(AppState *state);
 void drawBookmarkPopup(AppState *state);
 void drawFocusDim(AppState *state);
+void showBookmarkPopup(void);
 
 void drawArabicText(const char *text, Vector2 pos, float size, Color color);
 void drawArabicTextCentered(const char *text, Rectangle bounds, float size, Color color);

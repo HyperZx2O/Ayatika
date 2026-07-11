@@ -85,14 +85,12 @@ static Rectangle cardRect(int index) {
     return (Rectangle){x0 + col*(cw+gx), y0 + row*(cardH+gy), cw, cardH};
 }
 
-/* ── Mock bookmarks (Phase 6 development scaffold) ── */
-static Bookmark mockBookmarks[] = {
-    {1, 1, 1, "Favorite", "Opening verse of the Quran", 1718000000},
-    {2, 112, 1, "Memorize", "Short surah to memorize this week", 1718100000},
-    {3, 2, 255, "Ayat al-Kursi", "The Throne Verse for daily recitation", 1718200000},
-};
-static int mockBookmarkCount = 3;
+/* ── Bookmark popup timer ── */
 static double bookmarkPopupTime = 0;
+
+void showBookmarkPopup(void) {
+    bookmarkPopupTime = GetTime();
+}
 
 static int isBookmarked(int surah, int ayah) {
     for (int i = 0; i < mockBookmarkCount; i++)

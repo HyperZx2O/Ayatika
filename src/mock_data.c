@@ -224,3 +224,33 @@ MockAyah *findMockAyah(MockAppState *state, int surahNum, int ayahNum) {
     }
     return NULL;
 }
+
+/* ── Mock bookmarks (shared between ui.c and input.c) ── */
+Bookmark mockBookmarks[128] = {
+    {1, 1, 1, "Favorite", "Opening verse of the Quran", 1718000000},
+    {2, 112, 1, "Memorize", "Short surah to memorize this week", 1718100000},
+    {3, 2, 255, "Ayat al-Kursi", "The Throne Verse for daily recitation", 1718200000},
+};
+int mockBookmarkCount = 3;
+
+static int isBookmarkDuplicate(int surah, int ayah) {
+    for (int i = 0; i < mockBookmarkCount; i++)
+        if (mockBookmarks[i].surahNumber == surah &&
+            mockBookmarks[i].ayahNumber == ayah)
+            return 1;
+    return 0;
+}
+
+int addMockBookmark(int surah, int ayah) {
+    if (isBookmarkDuplicate(surah, ayah)) return 0;
+    if (mockBookmarkCount >= 128) return 0;
+    Bookmark *bm = &mockBookmarks[mockBookmarkCount];
+    bm->id = mockBookmarkCount + 1;
+    bm->surahNumber = surah;
+    bm->ayahNumber = ayah;
+    bm->tag[0] = '\0';
+    bm->note[0] = '\0';
+    bm->timestamp = time(NULL);
+    mockBookmarkCount++;
+    return 1;
+}
