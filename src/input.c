@@ -28,6 +28,13 @@ static int findBookmarkIndex(int surah, int ayah) {
     return -1;
 }
 
+/* ── Helper: count surahs loaded in mock data ── */
+static int mockSurahCount(AppState *state) {
+    int count = 0;
+    for (int i = 0; i < 114 && state->surahs[i].number > 0; i++) count++;
+    return count;
+}
+
 /* ============================================================
  * ACTION FUNCTIONS
  * ============================================================ */
@@ -37,9 +44,11 @@ static void moveCursorDown(AppState *state) {
         case SCREEN_DASHBOARD:
             if (state->dashboardCursor < 5) state->dashboardCursor++;
             break;
-        case SCREEN_SURAH_LIST:
-            state->cursorSurah++;
+        case SCREEN_SURAH_LIST: {
+            int max = mockSurahCount(state);
+            if (max > 0 && state->cursorSurah < max - 1) state->cursorSurah++;
             break;
+        }
         case SCREEN_AYAH_READER: {
             int max = mockAyahCount(state, state->currentSurah);
             if (max > 0 && state->currentAyah < max) state->currentAyah++;
@@ -65,13 +74,31 @@ static void moveCursorUp(AppState *state) {
 }
 
 static void moveCursorRight(AppState *state) {
-    if (state->currentScreen == SCREEN_DASHBOARD)
-        if (state->dashboardCursor < 5) state->dashboardCursor++;
+    switch (state->currentScreen) {
+        case SCREEN_DASHBOARD:
+            if (state->dashboardCursor < 5) state->dashboardCursor++;
+            break;
+        case SCREEN_SURAH_LIST:
+        case SCREEN_AYAH_READER: {
+            int max = mockSurahCount(state);
+            if (max > 0 && state->cursorSurah < max - 1) state->cursorSurah++;
+            break;
+        }
+        default: break;
+    }
 }
 
 static void moveCursorLeft(AppState *state) {
-    if (state->currentScreen == SCREEN_DASHBOARD)
-        if (state->dashboardCursor > 0) state->dashboardCursor--;
+    switch (state->currentScreen) {
+        case SCREEN_DASHBOARD:
+            if (state->dashboardCursor > 0) state->dashboardCursor--;
+            break;
+        case SCREEN_SURAH_LIST:
+        case SCREEN_AYAH_READER:
+            if (state->cursorSurah > 0) state->cursorSurah--;
+            break;
+        default: break;
+    }
 }
 
 static void goToTop(AppState *state) {
@@ -102,6 +129,10 @@ static void openSelected(AppState *state) {
             if (state->dashboardCursor == 3 || state->dashboardCursor == 5) {
                 pushScreen(state, SCREEN_AYAH_READER);
                 state->currentAyah = 1;
+                state->cursorSurah = state->currentSurah - 1;
+            } else {
+                pushScreen(state, SCREEN_SURAH_LIST);
+                state->cursorSurah = 0;
             }
             break;
         case SCREEN_SURAH_LIST:
@@ -111,13 +142,23 @@ static void openSelected(AppState *state) {
         case SCREEN_SURAH_OVERVIEW:
             pushScreen(state, SCREEN_AYAH_READER);
             state->currentAyah = 1;
+            state->cursorSurah = state->currentSurah - 1;
             break;
+        case SCREEN_AYAH_READER: {
+            int target = state->cursorSurah + 1;
+            if (target != state->currentSurah) {
+                state->currentSurah = target;
+                pushScreen(state, SCREEN_SURAH_OVERVIEW);
+            }
+            break;
+        }
         case SCREEN_BOOKMARKS:
             if (mockBookmarkCount > 0) {
                 int idx = (state->cursorSurah < mockBookmarkCount)
                           ? state->cursorSurah : 0;
                 state->currentSurah = mockBookmarks[idx].surahNumber;
                 state->currentAyah = mockBookmarks[idx].ayahNumber;
+                state->cursorSurah = state->currentSurah - 1;
                 pushScreen(state, SCREEN_AYAH_READER);
             }
             break;
@@ -194,8 +235,8 @@ typedef struct {
 static KeyBinding bindings[] = {
     { KEY_J,       -1,                  moveCursorDown   },
     { KEY_K,       -1,                  moveCursorUp     },
-    { KEY_L,       SCREEN_DASHBOARD,    moveCursorRight  },
-    { KEY_H,       SCREEN_DASHBOARD,    moveCursorLeft   },
+    { KEY_L,       -1,                  moveCursorRight  },
+    { KEY_H,       -1,                  moveCursorLeft   },
     { KEY_G,       -1,                  goToTop          },
     { KEY_END,     -1,                  goToBottom       },
     { KEY_ENTER,   -1,                  openSelected     },

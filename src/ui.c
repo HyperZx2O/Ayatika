@@ -322,9 +322,9 @@ void drawAyahReader(AppState *state) {
         return;
     }
 
-    /* Bookmark indicator — top-right of main panel */
+    /* Bookmark indicator — star glyph, top-right of main panel */
     if (isBookmarked(state->currentSurah, state->currentAyah))
-        DrawCircle(sw - 40, my + 5, 6, t->accent);
+        DrawText("\xe2\x98\x85", sw - 45, my - 2, 20, t->accent);
 
     /* Arabic text — right-aligned */
     drawArabicText(ayah->arabicText,
@@ -520,7 +520,7 @@ void drawFooter(AppState *state) {
     DrawRectangle(0, sh - FOOTER_H, sw, FOOTER_H, t->surface);
     DrawLine(0, sh - FOOTER_H, sw, sh - FOOTER_H, t->border);
     DrawText(state->statusMsg, 20, sh - FOOTER_H + 12, 14, t->muted);
-    DrawText("? = help   j/k/h/l = navigate   Enter = open   / = search   m = bookmarks",
+    DrawText("F1 = help   j/k/h/l = navigate   Enter = open   / = search   m = bookmarks",
              sw - 520, sh - FOOTER_H + 12, 13, t->muted);
 }
 
@@ -592,7 +592,45 @@ void drawWaqtPanel(AppState *state) {
 }
 
 void drawHelpOverlay(AppState *state) {
-    (void)state;
+    Theme *t = getTheme(state->currentTheme);
+    int sw = GetScreenWidth(), sh = GetScreenHeight();
+
+    DrawRectangle(0, 0, sw, sh, (Color){0, 0, 0, 180});
+
+    int cw = 520, ch = 420;
+    int cx = (sw - cw) / 2, cy = (sh - ch) / 2;
+    DrawRectangleRounded((Rectangle){(float)cx, (float)cy, (float)cw, (float)ch},
+                         0.06f, 8, t->surface);
+    DrawRectangleRoundedLines((Rectangle){(float)cx, (float)cy, (float)cw, (float)ch},
+                              0.06f, 8, t->border);
+
+    DrawText("Keyboard Shortcuts", cx + 20, cy + 16, 18, t->accent);
+    DrawLine(cx + 20, cy + 42, cx + cw - 20, cy + 42, t->border);
+
+    static const char *keys[][2] = {
+        {"j / k",     "Move cursor down / up"},
+        {"h / l",     "Dashboard: left / right"},
+        {"G / End",   "Go to top / bottom"},
+        {"Enter",     "Open selected item"},
+        {"Esc",       "Go back"},
+        {"/",         "Open search"},
+        {"b",         "Bookmark current ayah (Reader)"},
+        {"m",         "Open bookmarks"},
+        {"f",         "Toggle focus mode (Reader)"},
+        {"t",         "Cycle themes"},
+        {"Home",      "Go to dashboard"},
+        {"F1",        "Toggle this help"},
+    };
+    int rows = (int)(sizeof(keys) / sizeof(keys[0]));
+    for (int i = 0; i < rows; i++) {
+        int y = cy + 58 + i * 30;
+        DrawText(keys[i][0], cx + 24, y, 14, t->accent);
+        DrawText(keys[i][1], cx + 150, y, 14, t->foreground);
+    }
+
+    const char *close = "Press F1 to close";
+    float cw2 = MeasureText(close, 13);
+    DrawText(close, cx + (cw - (int)cw2) / 2, cy + ch - 28, 13, t->muted);
 }
 
 void drawBookmarkPopup(AppState *state) {
