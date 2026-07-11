@@ -12,7 +12,7 @@ BREW_PREFIX = /opt/homebrew
 CFLAGS_BREW = -I$(BREW_PREFIX)/include
 LDFLAGS_BREW = -L$(BREW_PREFIX)/lib
 
-.PHONY: all run test test_phase1 test_phase5 clean
+.PHONY: all run test test_phase1 test_phase5 test_phase6 clean
 
 all: $(TARGET)
 
@@ -22,7 +22,7 @@ $(TARGET): $(SRC)
 run: $(TARGET)
 	./$(TARGET)
 
-test: test_phase2 test_phase4 test_phase5
+test: test_phase2 test_phase4 test_phase5 test_phase6
 
 test_phase2: tests/test_phase2.c src/mock_data.c src/theme.c
 	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase2.c src/mock_data.c src/theme.c $(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase2
@@ -48,5 +48,11 @@ test_phase5: tests/test_phase5.c src/mock_data.c src/theme.c src/ui.c src/quran.
 		$(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase5
 	./tests/test_phase5
 
+# ── Phase 6: Ayah Reader & Surah Overview ──
+test_phase6: tests/test_phase6.c src/mock_data.c src/theme.c src/ui.c src/quran.c
+	$(CC) $(CFLAGS) $(CFLAGS_BREW) tests/test_phase6.c src/mock_data.c src/theme.c src/ui.c src/quran.c \
+		$(LDFLAGS_BREW) -lraylib -lm -lfribidi -o tests/test_phase6
+	./tests/test_phase6
+
 clean:
-	rm -f $(TARGET) tests/test_phase1 tests/test_raylib tests/test_phase2 tests/test_phase3 tests/test_phase4 tests/test_phase5
+	rm -f $(TARGET) tests/test_phase1 tests/test_raylib tests/test_phase2 tests/test_phase3 tests/test_phase4 tests/test_phase5 tests/test_phase6

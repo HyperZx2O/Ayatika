@@ -85,6 +85,81 @@ static Rectangle cardRect(int index) {
     return (Rectangle){x0 + col*(cw+gx), y0 + row*(cardH+gy), cw, cardH};
 }
 
+/* ── Mock bookmarks (Phase 6 development scaffold) ── */
+static Bookmark mockBookmarks[] = {
+    {1, 1, 1, "Favorite", "Opening verse of the Quran", 1718000000},
+    {2, 112, 1, "Memorize", "Short surah to memorize this week", 1718100000},
+    {3, 2, 255, "Ayat al-Kursi", "The Throne Verse for daily recitation", 1718200000},
+};
+static int mockBookmarkCount = 3;
+static double bookmarkPopupTime = 0;
+
+static int isBookmarked(int surah, int ayah) {
+    for (int i = 0; i < mockBookmarkCount; i++)
+        if (mockBookmarks[i].surahNumber == surah &&
+            mockBookmarks[i].ayahNumber == ayah)
+            return 1;
+    return 0;
+}
+
+static void drawWrappedText(const char *text, Rectangle bounds, int fontSize, Color color) {
+    if (!text || !*text) return;
+    Font f = uiFont;
+    int y = (int)bounds.y;
+    int lineH = fontSize + 4;
+    const char *lineStart = text;
+
+    while (*lineStart && y + fontSize <= (int)(bounds.y + bounds.height)) {
+        char lineBuf[2048];
+        const char *p = lineStart;
+        const char *lastSpace = NULL;
+        int flushed = 0;
+
+        while (*p && *p != '\n') {
+            int len = p - lineStart + 1;
+            if (len >= (int)sizeof(lineBuf)) break;
+
+            memcpy(lineBuf, lineStart, len);
+            lineBuf[len] = '\0';
+            float w = MeasureTextEx(f, lineBuf, fontSize, 1).x;
+
+            if (w > bounds.width && len > 1) {
+                int flushLen;
+                const char *nextStart;
+                if (lastSpace) {
+                    flushLen = lastSpace - lineStart;
+                    nextStart = lastSpace + 1;
+                } else {
+                    flushLen = p - lineStart;
+                    nextStart = p;
+                }
+                memcpy(lineBuf, lineStart, flushLen);
+                lineBuf[flushLen] = '\0';
+                DrawTextEx(f, lineBuf, (Vector2){bounds.x, (float)y}, fontSize, 1, color);
+                y += lineH;
+                lineStart = nextStart;
+                flushed = 1;
+                break;
+            }
+
+            if (*p == ' ') lastSpace = p;
+            p++;
+        }
+
+        if (!flushed) {
+            int len = p - lineStart;
+            if (len > 0) {
+                memcpy(lineBuf, lineStart, len);
+                lineBuf[len] = '\0';
+                DrawTextEx(f, lineBuf, (Vector2){bounds.x, (float)y}, fontSize, 1, color);
+                y += lineH;
+            }
+            if (*p == '\n') lineStart = p + 1;
+            else break;
+        }
+    }
+}
+
 void drawDashboard(AppState *state) {
     Theme *t = getTheme(state->currentTheme);
     int sw = GetScreenWidth(), sh = GetScreenHeight();
@@ -217,12 +292,201 @@ void drawDashboard(AppState *state) {
 
 void drawSurahList(AppState *state) {
     Theme *t = getTheme(state->currentTheme);
-    int sh = GetScreenHeight();
     drawTopBar(state);
+    drawSidebar(state);
+    int px = SIDEBAR_W + 20;
+    DrawText("Select a surah to begin reading", px, TOPBAR_H + 20, 18, t->muted);
+    drawFooter(state);
+}
+
+void drawAyahReader(AppState *state) {
+    Theme *t = getTheme(state->currentTheme);
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
+
+    drawTopBar(state);
+    drawSidebar(state);
+    drawFooter(state);
+
+    int mx = SIDEBAR_W + 40;
+    int my = TOPBAR_H + 30;
+    int mainW = sw - SIDEBAR_W - 80;
+
+    if (state->focusMode)
+        DrawRectangle(SIDEBAR_W, TOPBAR_H, sw - SIDEBAR_W,
+                      sh - TOPBAR_H - FOOTER_H, (Color){0, 0, 0, 160});
+
+    Ayah *ayah = findMockAyah(state, state->currentSurah, state->currentAyah);
+    if (!ayah) {
+        const char *msg = "No ayah loaded for this reference";
+        int tw = MeasureText(msg, 16);
+        DrawText(msg, (sw - tw) / 2, sh / 2, 16, t->muted);
+        return;
+    }
+
+    /* Bookmark indicator — top-right of main panel */
+    if (isBookmarked(state->currentSurah, state->currentAyah))
+        DrawCircle(sw - 40, my + 5, 6, t->accent);
+
+    /* Arabic text — right-aligned */
+    drawArabicText(ayah->arabicText,
+                   (Vector2){(float)(sw - 60), (float)my},
+                   34, t->foreground);
+
+    /* Translation — word-wrapped within main panel */
+    char *translation = (strcmp(state->language, "bn") == 0)
+                        ? ayah->translationBn : ayah->translationEn;
+    drawWrappedText(translation,
+                    (Rectangle){(float)mx, (float)(my + 90),
+                                (float)mainW, (float)(sh - FOOTER_H - my - 120)},
+                    16, t->muted);
+
+    /* Reference — bottom-left of main panel */
+    char ref[32];
+    snprintf(ref, sizeof(ref), "%d:%d", state->currentSurah, state->currentAyah);
+    DrawText(ref, mx, sh - FOOTER_H - 30, 13, t->muted);
+}
+
+void drawBookmarks(AppState *state) {
+    Theme *t = getTheme(state->currentTheme);
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
+
+    drawTopBar(state);
+    drawFooter(state);
+
+    int listY = TOPBAR_H;
+    int listH = sh - TOPBAR_H - FOOTER_H;
+
+    if (mockBookmarkCount == 0) {
+        const char *msg = "No bookmarks yet -- press b while reading to save your place.";
+        int tw = MeasureText(msg, 16);
+        DrawText(msg, (sw - tw) / 2, listY + listH / 2 - 8, 16, t->muted);
+        return;
+    }
+
+    int rowH = 58;
+    int visible = listH / rowH;
+    static int bmScrollOff = 0;
+    static int bmCursor = 0;
+
+    if (bmCursor < 0) bmCursor = 0;
+    if (bmCursor >= mockBookmarkCount) bmCursor = mockBookmarkCount - 1;
+    if (bmCursor < bmScrollOff) bmScrollOff = bmCursor;
+    if (bmCursor >= bmScrollOff + visible) bmScrollOff = bmCursor - visible + 1;
+    if (mockBookmarkCount <= visible) bmScrollOff = 0;
+    else if (bmScrollOff > mockBookmarkCount - visible) bmScrollOff = mockBookmarkCount - visible;
+    if (bmScrollOff < 0) bmScrollOff = 0;
+
+    for (int i = bmScrollOff; i < mockBookmarkCount && i < bmScrollOff + visible; i++) {
+        int y = listY + (i - bmScrollOff) * rowH;
+        int active = (i == bmCursor);
+
+        if (active) {
+            DrawRectangle(20, y, sw - 40, rowH, t->surface);
+            DrawRectangleLines(20, y, sw - 40, rowH, t->border);
+        }
+        DrawLine(40, y + rowH, sw - 40, y + rowH, t->border);
+
+        Bookmark *bm = &mockBookmarks[i];
+
+        /* Reference */
+        char ref[32];
+        snprintf(ref, sizeof(ref), "%d:%d", bm->surahNumber, bm->ayahNumber);
+        DrawText(ref, 40, y + 8, 16, t->accent);
+
+        /* Tag */
+        const char *tag = bm->tag[0] ? bm->tag : "(untagged)";
+        Color tagColor = bm->tag[0] ? t->foreground : t->muted;
+        DrawText(tag, 120, y + 8, 16, tagColor);
+
+        /* Surah name */
+        if (bm->surahNumber >= 1 && bm->surahNumber <= 114 && state->surahs) {
+            Surah *s = &state->surahs[bm->surahNumber - 1];
+            if (s->number > 0)
+                DrawText(s->name, 120, y + 28, 13, t->muted);
+        }
+
+        /* Note (truncated) */
+        if (bm->note[0]) {
+            char note[80];
+            strncpy(note, bm->note, sizeof(note) - 1);
+            note[sizeof(note) - 1] = '\0';
+            if ((int)strlen(bm->note) > 75) {
+                note[74] = '.'; note[75] = '.'; note[76] = '.'; note[77] = '\0';
+            }
+            DrawText(note, 40, y + 44, 12, t->muted);
+        }
+    }
+}
+
+void drawSurahOverview(AppState *state) {
+    Theme *t = getTheme(state->currentTheme);
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
+
+    /* Full-screen scrim */
+    DrawRectangle(0, 0, sw, sh, (Color){0, 0, 0, 200});
+
+    /* Centered card */
+    int cw = 600, ch = 320;
+    int cx = (sw - cw) / 2, cy = (sh - ch) / 2;
+    DrawRectangleRounded((Rectangle){(float)cx, (float)cy, (float)cw, (float)ch},
+                         0.08f, 8, t->surface);
+    DrawRectangleRoundedLines((Rectangle){(float)cx, (float)cy, (float)cw, (float)ch},
+                              0.08f, 8, t->border);
+
+    if (state->currentSurah < 1 || state->currentSurah > 114) return;
+    Surah *s = &state->surahs[state->currentSurah - 1];
+    if (s->number == 0) return;
+
+    /* Arabic name — centered */
+    drawArabicTextCentered(s->arabicName,
+        (Rectangle){(float)cx, (float)(cy + 20), (float)cw, 80},
+        42, t->accent);
+
+    /* English name — centered */
+    float nameW = MeasureText(s->name, 22);
+    DrawText(s->name, cx + (cw - (int)nameW) / 2, cy + 110, 22, t->foreground);
+
+    /* Badges */
+    DrawRectangleRounded((Rectangle){(float)(cx + 60), (float)(cy + 148), 100, 24},
+                         0.4f, 4, t->accent);
+    DrawText(s->revelationType, cx + 68, cy + 153, 14, t->background);
+    char cnt[32];
+    snprintf(cnt, sizeof(cnt), "%d Ayahs", s->ayahCount);
+    DrawRectangleRounded((Rectangle){(float)(cx + 180), (float)(cy + 148), 90, 24},
+                         0.4f, 4, t->border);
+    DrawText(cnt, cx + 190, cy + 153, 14, t->foreground);
+
+    /* Context blurb — word-wrapped */
+    drawWrappedText(s->context,
+        (Rectangle){(float)(cx + 30), (float)(cy + 192), (float)(cw - 60), 80},
+        14, t->muted);
+
+    /* Footer prompt */
+    const char *prompt = "Press any key to begin reading";
+    float pw = MeasureText(prompt, 13);
+    DrawText(prompt, cx + (cw - (int)pw) / 2, cy + ch - 30, 13, t->muted);
+}
+
+void drawTopBar(AppState *state) {
+    Theme *t = getTheme(state->currentTheme);
+    int sw = GetScreenWidth();
+    DrawRectangle(0, 0, sw, TOPBAR_H, t->surface);
+    DrawLine(0, TOPBAR_H, sw, TOPBAR_H, t->border);
+    DrawText("Ayatika", 20, 16, 22, t->accent);
+    char buf[128];
+    snprintf(buf, sizeof(buf), "Next: %s", state->prayer.dhuhrStr[0] ? state->prayer.dhuhrStr : "--:--");
+    DrawText(buf, sw - 220, 18, 16, t->foreground);
+}
+
+void drawSidebar(AppState *state) {
+    Theme *t = getTheme(state->currentTheme);
+    int sh = GetScreenHeight();
     int listY = TOPBAR_H, listH = sh - TOPBAR_H - FOOTER_H;
     int rowH = 48;
     DrawRectangle(0, listY, SIDEBAR_W, listH, t->surface);
-    /* count populated surahs */
     int total = 0;
     for (int i = 0; i < 114 && state->surahs[i].number > 0; i++) total++;
     int visible = listH / rowH;
@@ -245,40 +509,10 @@ void drawSurahList(AppState *state) {
         snprintf(cnt, sizeof(cnt), "%d ayahs", s->ayahCount);
         DrawText(cnt, 48, y + 24, 12, active ? t->background : t->muted);
         int dotX = SIDEBAR_W - 20, dotY = y + rowH/2;
-        Color dc = active ? t->background : (strcmp(s->revelationType, "Meccan") == 0 ? t->accent : t->border);
+        Color dc = active ? t->background :
+                   (strcmp(s->revelationType, "Meccan") == 0 ? t->accent : t->border);
         DrawCircle(dotX, dotY, 4, dc);
     }
-    /* main panel placeholder */
-    int px = SIDEBAR_W + 20;
-    DrawText("Select a surah to begin reading", px, listY + 20, 18, t->muted);
-    drawFooter(state);
-}
-
-void drawAyahReader(AppState *state) {
-    (void)state;
-}
-
-void drawBookmarks(AppState *state) {
-    (void)state;
-}
-
-void drawSurahOverview(AppState *state) {
-    (void)state;
-}
-
-void drawTopBar(AppState *state) {
-    Theme *t = getTheme(state->currentTheme);
-    int sw = GetScreenWidth();
-    DrawRectangle(0, 0, sw, TOPBAR_H, t->surface);
-    DrawLine(0, TOPBAR_H, sw, TOPBAR_H, t->border);
-    DrawText("Ayatika", 20, 16, 22, t->accent);
-    char buf[128];
-    snprintf(buf, sizeof(buf), "Next: %s", state->prayer.dhuhrStr[0] ? state->prayer.dhuhrStr : "--:--");
-    DrawText(buf, sw - 220, 18, 16, t->foreground);
-}
-
-void drawSidebar(AppState *state) {
-    (void)state;
 }
 
 void drawFooter(AppState *state) {
@@ -364,11 +598,33 @@ void drawHelpOverlay(AppState *state) {
 }
 
 void drawBookmarkPopup(AppState *state) {
-    (void)state;
+    if (bookmarkPopupTime <= 0) return;
+    double elapsed = GetTime() - bookmarkPopupTime;
+    if (elapsed > 2.0) { bookmarkPopupTime = 0; return; }
+
+    Theme *t = getTheme(state->currentTheme);
+    int sw = GetScreenWidth();
+    float alpha = elapsed < 1.5 ? 1.0f : 1.0f - (float)((elapsed - 1.5) / 0.5);
+
+    const char *msg = "Bookmark saved";
+    int tw = MeasureText(msg, 16);
+    int pw = tw + 40, ph = 36;
+    int px = (sw - pw) / 2, py = 70;
+
+    Color bg = t->surface; bg.a = (unsigned char)(200 * alpha);
+    Color fg = t->accent;  fg.a = (unsigned char)(255 * alpha);
+
+    DrawRectangleRounded((Rectangle){(float)px, (float)py, (float)pw, (float)ph},
+                         0.3f, 4, bg);
+    DrawText(msg, px + 20, py + 10, 16, fg);
 }
 
 void drawFocusDim(AppState *state) {
-    (void)state;
+    if (!state->focusMode) return;
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
+    DrawRectangle(SIDEBAR_W, TOPBAR_H, sw - SIDEBAR_W,
+                  sh - TOPBAR_H - FOOTER_H, (Color){0, 0, 0, 160});
 }
 
 static int reorderArabic(const char *text, char *visualOut, int outSize) {
