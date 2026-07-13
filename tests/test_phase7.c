@@ -371,7 +371,7 @@ static void visualTest(void) {
     SetTargetFPS(60);
 
     initThemes();
-    initFonts();
+    initFonts(NULL);
 
     AppState state;
     memset(&state, 0, sizeof(state));

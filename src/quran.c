@@ -21,33 +21,10 @@
 /* TODO: cJSON parse into state->surahs / state->ayahs */
 /* TODO: cache to data/quran.json, data/translation_en.json, data/translation_bn.json */
 
-int loadQuranData(AppState *state) {
-    (void)state;
-    /* TODO: implement */
-    return 0;
-}
-
-Ayah *getAyah(AppState *state, int surahNum, int ayahNum) {
-    for (int i = 0; i < state->totalAyahs; i++) {
-        if (state->ayahs[i].surahNumber == surahNum &&
-            state->ayahs[i].ayahNumber  == ayahNum)
-            return &state->ayahs[i];
-    }
-    return NULL;
-}
-
-int getAyahIndex(AppState *state, int surahNum, int ayahNum) {
-    for (int i = 0; i < state->totalAyahs; i++) {
-        if (state->ayahs[i].surahNumber == surahNum &&
-            state->ayahs[i].ayahNumber  == ayahNum)
-            return i;
-    }
-    return -1;
-}
-
-int getDailyAyahIndex(void) {
+int getDailyAyahIndex(int totalAyahs) {
+    if (totalAyahs <= 0) return 0;
     time_t t = time(NULL);
     struct tm *tm = localtime(&t);
     int doy = tm->tm_yday;
-    return doy % 6236;
+    return doy % totalAyahs;
 }

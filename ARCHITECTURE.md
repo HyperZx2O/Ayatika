@@ -31,12 +31,7 @@ ayatika/
 │   ├── sqlite3.h / sqlite3.c
 │   └── fts_fuzzy_match.h
 ├── assets/
-│   ├── azan.mp3
-│   ├── nature.ogg
-│   ├── click.wav
-│   ├── surah_switch.wav
-│   ├── Amiri.ttf
-│   └── cat.png
+│   └── Amiri.ttf
 └── data/                    ← gitignored, generated at runtime
     ├── quran.json
     ├── translation_en.json
@@ -183,6 +178,5 @@ To avoid conflicts entirely: only edit files in your own section. If you need to
 - [ ] Clone the repo
 - [ ] Run `make` to confirm the build system works (it will fail to link until source files have real content — that's expected at this stage)
 - [ ] Check out your own branch (`backend/m1`, `frontend/m2`, or `systems/m3`)
-- [ ] Read your individual task file (`member1.md`, `member2.md`, or `member3.md`)
 - [ ] Confirm `src/quran.h` matches what's described in your task file before writing any code
 - [ ] Start with Week 1 tasks

@@ -3,7 +3,7 @@
 #include <time.h>
 #include "mock_data.h"
 
-static void setSurah(MockSurah *s, int number, const char *name, const char *arabic,
+static void setSurah(Surah *s, int number, const char *name, const char *arabic,
                      const char *meaning, const char *type, int count, const char *ctx) {
     s->number = number;
     strncpy(s->name, name, sizeof(s->name) - 1);
@@ -14,7 +14,7 @@ static void setSurah(MockSurah *s, int number, const char *name, const char *ara
     strncpy(s->context, ctx, sizeof(s->context) - 1);
 }
 
-static void setAyah(MockAyah *a, int surah, int ayah, const char *arabic,
+static void setAyah(Ayah *a, int surah, int ayah, const char *arabic,
                     const char *en, const char *bn) {
     a->surahNumber = surah;
     a->ayahNumber = ayah;
@@ -24,9 +24,9 @@ static void setAyah(MockAyah *a, int surah, int ayah, const char *arabic,
     strncpy(a->audioUrl, "", sizeof(a->audioUrl) - 1);
 }
 
-void loadMockData(MockAppState *state) {
+void loadMockData(AppState *state) {
     /* ── Surahs ── */
-    state->surahs = (MockSurah *)malloc(7 * sizeof(MockSurah));
+    state->surahs = (Surah *)malloc(7 * sizeof(Surah));
     if (!state->surahs) return;
 
     setSurah(&state->surahs[0], 1, "Al-Fatiha", "الفاتحة",
@@ -49,12 +49,14 @@ void loadMockData(MockAppState *state) {
              "A short but profound surah: all of humanity is in loss except those who believe, do good, and encourage truth and patience.");
     setSurah(&state->surahs[6], 108, "Al-Kawthar", "الكَوْثَر",
              "The Abundance", "Meccan", 3,
-             "The shortest surah in the Quran. A promise of abundant blessings to the Prophet and a command to pray and sacrifice.");
+              "The shortest surah in the Quran. A promise of abundant blessings to the Prophet and a command to pray and sacrifice.");
+
+    state->surahCount = 7;
 
     /* ── Ayahs (flat array) ── */
     int total = 0;
     /* Al-Fatiha: 7 ayahs */
-    MockAyah ayat[22];
+    Ayah ayat[22];
 
     setAyah(&ayat[total++], 1, 1,
         "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
@@ -160,29 +162,54 @@ void loadMockData(MockAppState *state) {
         "Indeed, your enemy is the one cut off.",
         "নিশ্চয়ই আপনার শত্রুই নির্বংশ।");
 
-    state->ayahs = (MockAyah *)malloc(total * sizeof(MockAyah));
+    state->ayahs = (Ayah *)malloc(total * sizeof(Ayah));
     if (state->ayahs) {
-        memcpy(state->ayahs, ayat, total * sizeof(MockAyah));
+        memcpy(state->ayahs, ayat, total * sizeof(Ayah));
         state->totalAyahs = total;
     }
 
     /* ── Hadith ── */
-    state->hadiths = (MockHadith *)malloc(1 * sizeof(MockHadith));
+    state->totalHadiths = 6;
+    state->hadiths = (Hadith *)malloc(state->totalHadiths * sizeof(Hadith));
     if (state->hadiths) {
-        MockHadith *h = &state->hadiths[0];
-        strncpy(h->name, "Sahih Bukhari", sizeof(h->name) - 1);
-        strncpy(h->text, "The best among you are those who learn the Quran and teach it.",
-                sizeof(h->text) - 1);
-        strncpy(h->narrator, "Narrated by Uthman ibn Affan", sizeof(h->narrator) - 1);
-        strncpy(h->collection, "Bukhari", sizeof(h->collection) - 1);
-        state->totalHadiths = 1;
+        Hadith h[6];
+        strncpy(h[0].name, "Sahih Bukhari", sizeof(h[0].name) - 1);
+        strncpy(h[0].text, "The best among you are those who learn the Quran and teach it.", sizeof(h[0].text) - 1);
+        strncpy(h[0].narrator, "Narrated by Uthman ibn Affan", sizeof(h[0].narrator) - 1);
+        strncpy(h[0].collection, "Bukhari", sizeof(h[0].collection) - 1);
+
+        strncpy(h[1].name, "Sahih Bukhari", sizeof(h[1].name) - 1);
+        strncpy(h[1].text, "Actions are judged by intentions, and every person will get the reward according to what he has intended.", sizeof(h[1].text) - 1);
+        strncpy(h[1].narrator, "Narrated by Umar ibn al-Khattab", sizeof(h[1].narrator) - 1);
+        strncpy(h[1].collection, "Bukhari", sizeof(h[1].collection) - 1);
+
+        strncpy(h[2].name, "Sahih Bukhari", sizeof(h[2].name) - 1);
+        strncpy(h[2].text, "None of you truly believes until he loves for his brother what he loves for himself.", sizeof(h[2].text) - 1);
+        strncpy(h[2].narrator, "Narrated by Anas ibn Malik", sizeof(h[2].narrator) - 1);
+        strncpy(h[2].collection, "Bukhari", sizeof(h[2].collection) - 1);
+
+        strncpy(h[3].name, "Sahih Bukhari", sizeof(h[3].name) - 1);
+        strncpy(h[3].text, "Whoever recites the last two verses of Surah Al-Baqarah at night, they will be sufficient for him.", sizeof(h[3].text) - 1);
+        strncpy(h[3].narrator, "Narrated by Abu Mas'ud al-Ansari", sizeof(h[3].narrator) - 1);
+        strncpy(h[3].collection, "Bukhari", sizeof(h[3].collection) - 1);
+
+        strncpy(h[4].name, "Sahih Muslim", sizeof(h[4].name) - 1);
+        strncpy(h[4].text, "Kindness is a mark of faith, and whoever is not kind has no faith.", sizeof(h[4].text) - 1);
+        strncpy(h[4].narrator, "Narrated by Aisha", sizeof(h[4].narrator) - 1);
+        strncpy(h[4].collection, "Muslim", sizeof(h[4].collection) - 1);
+
+        strncpy(h[5].name, "Sahih Muslim", sizeof(h[5].name) - 1);
+        strncpy(h[5].text, "The world is a prison for the believer and a paradise for the disbeliever.", sizeof(h[5].text) - 1);
+        strncpy(h[5].narrator, "Narrated by Abu Huraira", sizeof(h[5].narrator) - 1);
+        strncpy(h[5].collection, "Muslim", sizeof(h[5].collection) - 1);
+
+        memcpy(state->hadiths, h, state->totalHadiths * sizeof(Hadith));
     }
 
     /* ── Bookmarks ── */
-    (void)state->currentSurah; /* unused in this function */
     /* We store bookmarks inline for now */
     /* ── Prayer Times ── */
-    MockPrayerTimes *pt = &state->prayer;
+    PrayerTimes *pt = &state->prayer;
     strncpy(pt->fajrStr, "04:42", sizeof(pt->fajrStr) - 1);
     strncpy(pt->dhuhrStr, "12:14", sizeof(pt->dhuhrStr) - 1);
     strncpy(pt->asrStr, "16:02", sizeof(pt->asrStr) - 1);
@@ -201,8 +228,8 @@ void loadMockData(MockAppState *state) {
     state->currentSurah = 1;
     state->currentAyah = 1;
     state->cursorSurah = 0;
-    state->currentScreen = MOCK_SCREEN_DASHBOARD;
-    state->previousScreen = MOCK_SCREEN_DASHBOARD;
+    state->currentScreen = SCREEN_DASHBOARD;
+    state->previousScreen = SCREEN_DASHBOARD;
     state->currentTheme = 0;
     state->focusMode = 0;
     state->showHelp = 0;
@@ -214,15 +241,35 @@ void loadMockData(MockAppState *state) {
     strncpy(state->statusMsg, "Press ? for help | j/k to navigate | Enter to open",
             sizeof(state->statusMsg) - 1);
     strncpy(state->language, "en", sizeof(state->language) - 1);
+
+    /* Settings defaults */
+    state->vimMotions  = 0;
+    state->fontScale   = 1.0f;
+    state->idleSeconds = 120;
+    state->autoResume  = 1;
+
+    /* ── Bookmark timestamps (relative to now for demo) ── */
+    long now = time(NULL);
+    mockBookmarks[0].timestamp = now - 120;       /* 2m ago */
+    mockBookmarks[1].timestamp = now - 7200;      /* 2h ago */
+    mockBookmarks[2].timestamp = now - 172800;    /* 2d ago */
 }
 
-MockAyah *findMockAyah(MockAppState *state, int surahNum, int ayahNum) {
+Ayah *findMockAyah(AppState *state, int surahNum, int ayahNum) {
     for (int i = 0; i < state->totalAyahs; i++) {
         if (state->ayahs[i].surahNumber == surahNum &&
             state->ayahs[i].ayahNumber == ayahNum)
             return &state->ayahs[i];
     }
     return NULL;
+}
+
+long getMockBookmarkTimestamp(int surah, int ayah) {
+    for (int i = 0; i < mockBookmarkCount; i++)
+        if (mockBookmarks[i].surahNumber == surah &&
+            mockBookmarks[i].ayahNumber == ayah)
+            return mockBookmarks[i].timestamp;
+    return 0;
 }
 
 /* ── Mock bookmarks (shared between ui.c and input.c) ── */

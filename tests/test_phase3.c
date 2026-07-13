@@ -110,7 +110,7 @@ static void test_visual_rendering(void) {
     SetExitKey(0);
 
     initThemes();
-    initFonts();
+    initFonts(NULL);
 
     Theme *t = getTheme(0);
 

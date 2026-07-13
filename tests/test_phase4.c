@@ -22,33 +22,35 @@ static void check(int cond, const char *label) {
 
 static void test_theme_colors(void) {
     TraceLog(LOG_INFO, "--- Theme Color Tests ---");
-    check(THEME_COUNT == 3, "THEME_COUNT is 3");
+    check(THEME_COUNT == 4, "THEME_COUNT is 4");
     Theme *t0 = getTheme(0);
-    check(strcmp(t0->name, "Dark Parchment") == 0, "Theme 0 name = Dark Parchment");
-    check(t0->background.r == 18 && t0->background.g == 15 && t0->background.b == 12,
-          "Dark Parchment background {18,15,12}");
-    check(t0->accent.r == 180 && t0->accent.g == 140 && t0->accent.b == 60,
-          "Dark Parchment accent {180,140,60}");
+    check(strcmp(t0->name, "Celestial Night") == 0, "Theme 0 name = Celestial Night");
+    check(t0->background.r == 12 && t0->background.g == 14 && t0->background.b == 28,
+          "Celestial Night background {12,14,28}");
+    check(t0->accent.r == 210 && t0->accent.g == 175 && t0->accent.b == 90,
+          "Celestial Night accent {210,175,90}");
     Theme *t1 = getTheme(1);
-    check(strcmp(t1->name, "Light Manuscript") == 0, "Theme 1 name = Light Manuscript");
-    check(t1->background.r == 245 && t1->background.g == 240 && t1->background.b == 228,
-          "Light Manuscript background {245,240,228}");
-    check(t1->foreground.r == 30 && t1->foreground.g == 25 && t1->foreground.b == 18,
-          "Light Manuscript foreground {30,25,18}");
+    check(strcmp(t1->name, "Moonlit Garden") == 0, "Theme 1 name = Moonlit Garden");
+    check(t1->background.r == 248 && t1->background.g == 242 && t1->background.b == 235,
+          "Moonlit Garden background {248,242,235}");
+    check(t1->foreground.r == 45 && t1->foreground.g == 35 && t1->foreground.b == 30,
+          "Moonlit Garden foreground {45,35,30}");
     Theme *t2 = getTheme(2);
-    check(strcmp(t2->name, "Emerald Night") == 0, "Theme 2 name = Emerald Night");
-    check(t2->background.r == 8 && t2->background.g == 18 && t2->background.b == 14,
-          "Emerald Night background {8,18,14}");
-    check(t2->accent.r == 50 && t2->accent.g == 180 && t2->accent.b == 110,
-          "Emerald Night accent {50,180,110}");
+    check(strcmp(t2->name, "Peacock Court") == 0, "Theme 2 name = Peacock Court");
+    check(t2->background.r == 10 && t2->background.g == 25 && t2->background.b == 28,
+          "Peacock Court background {10,25,28}");
+    check(t2->accent.r == 210 && t2->accent.g == 120 && t2->accent.b == 100,
+          "Peacock Court accent {210,120,100}");
 }
 
 static void test_theme_wrapping(void) {
     TraceLog(LOG_INFO, "--- Theme Wrapping Tests ---");
-    check(strcmp(getTheme(3)->name, "Dark Parchment") == 0,
-          "getTheme(3) wraps to Dark Parchment");
-    check(strcmp(getTheme(100)->name, "Light Manuscript") == 0,
-          "getTheme(100) wraps to Light Manuscript");
+    check(strcmp(getTheme(3)->name, "Amber Sanctum") == 0,
+          "getTheme(3) is Amber Sanctum");
+    check(strcmp(getTheme(4)->name, "Celestial Night") == 0,
+          "getTheme(4) wraps to Celestial Night");
+    check(strcmp(getTheme(100)->name, "Celestial Night") == 0,
+          "getTheme(100) wraps to Celestial Night");
     AppState s;
     memset(&s, 0, sizeof(s));
     s.currentTheme = 0;
@@ -57,7 +59,9 @@ static void test_theme_wrapping(void) {
     cycleTheme(&s);
     check(s.currentTheme == 2, "cycleTheme 1->2");
     cycleTheme(&s);
-    check(s.currentTheme == 0, "cycleTheme 2->0 (wraps)");
+    check(s.currentTheme == 3, "cycleTheme 2->3");
+    cycleTheme(&s);
+    check(s.currentTheme == 0, "cycleTheme 3->0 (wraps)");
 }
 
 static void test_theme_contrast(void) {
@@ -79,7 +83,7 @@ static void test_visual_themes(void) {
     SetTargetFPS(30);
     SetExitKey(0);
     initThemes();
-    initFonts();
+    initFonts(NULL);
     AppState state;
     memset(&state, 0, sizeof(state));
     state.currentScreen = SCREEN_DASHBOARD;

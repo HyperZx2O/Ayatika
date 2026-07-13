@@ -138,51 +138,53 @@ static void test_mock_data_loads_correctly(void) {
 static void test_themes(void) {
     initThemes();
 
-    TEST("theme count is 3") {
-        ASSERT(THEME_COUNT == 3);
+    TEST("theme count is 4") {
+        ASSERT(THEME_COUNT == 4);
     } ENDTEST;
 
-    TEST("dark parchment background correct") {
+    TEST("celestial night background correct") {
         Theme *t = getTheme(0);
-        ASSERT(t->background.r == 18);
-        ASSERT(t->background.g == 15);
-        ASSERT(t->background.b == 12);
+        ASSERT(t->background.r == 12);
+        ASSERT(t->background.g == 14);
+        ASSERT(t->background.b == 28);
         ASSERT(t->background.a == 255);
-        ASSERT(strcmp(t->name, "Dark Parchment") == 0);
+        ASSERT(strcmp(t->name, "Celestial Night") == 0);
     } ENDTEST;
 
-    TEST("dark parchment accent correct") {
+    TEST("celestial night accent correct") {
         Theme *t = getTheme(0);
-        ASSERT(t->accent.r == 180);
-        ASSERT(t->accent.g == 140);
-        ASSERT(t->accent.b == 60);
+        ASSERT(t->accent.r == 210);
+        ASSERT(t->accent.g == 175);
+        ASSERT(t->accent.b == 90);
     } ENDTEST;
 
-    TEST("light manuscript colors correct") {
+    TEST("moonlit garden colors correct") {
         Theme *t = getTheme(1);
-        ASSERT(t->background.r == 245);
-        ASSERT(t->background.g == 240);
-        ASSERT(t->background.b == 228);
-        ASSERT(t->foreground.r == 30);
-        ASSERT(t->foreground.g == 25);
-        ASSERT(t->foreground.b == 18);
+        ASSERT(t->background.r == 248);
+        ASSERT(t->background.g == 242);
+        ASSERT(t->background.b == 235);
+        ASSERT(t->foreground.r == 45);
+        ASSERT(t->foreground.g == 35);
+        ASSERT(t->foreground.b == 30);
     } ENDTEST;
 
-    TEST("emerald night colors correct") {
+    TEST("peacock court colors correct") {
         Theme *t = getTheme(2);
-        ASSERT(t->background.r == 8);
-        ASSERT(t->background.g == 18);
-        ASSERT(t->background.b == 14);
-        ASSERT(t->accent.r == 50);
-        ASSERT(t->accent.g == 180);
-        ASSERT(t->accent.b == 110);
+        ASSERT(t->background.r == 10);
+        ASSERT(t->background.g == 25);
+        ASSERT(t->background.b == 28);
+        ASSERT(t->accent.r == 210);
+        ASSERT(t->accent.g == 120);
+        ASSERT(t->accent.b == 100);
     } ENDTEST;
 
     TEST("getTheme wraps with modulo") {
         Theme *t = getTheme(3);
-        ASSERT(strcmp(t->name, "Dark Parchment") == 0);
+        ASSERT(strcmp(t->name, "Amber Sanctum") == 0);
+        t = getTheme(4);
+        ASSERT(strcmp(t->name, "Celestial Night") == 0);
         t = getTheme(100);
-        ASSERT(strcmp(t->name, "Light Manuscript") == 0);
+        ASSERT(strcmp(t->name, "Celestial Night") == 0);
     } ENDTEST;
 
     TEST("cycleTheme wraps around") {
@@ -193,6 +195,8 @@ static void test_themes(void) {
         ASSERT(s.currentTheme == 1);
         cycleTheme(&s);
         ASSERT(s.currentTheme == 2);
+        cycleTheme(&s);
+        ASSERT(s.currentTheme == 3);
         cycleTheme(&s);
         ASSERT(s.currentTheme == 0);
     } ENDTEST;

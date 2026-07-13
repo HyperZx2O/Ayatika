@@ -1,9 +1,16 @@
 # Compiled binary
 ayatika
-tests/test_phase[0-9]
+tests/test_phase[0-9]*
 *.o
 *.out
 *.exe
+*.dll
+
+# Runtime log / diagnostic output
+console_*.txt
+diagnostic_dump.txt
+diag_*.txt
+tests/diag_*.txt
 
 # Runtime-generated data (not committed — created on first run)
 data/quran.json
@@ -23,6 +30,7 @@ data/config.ini
 *.swp
 .DS_Store
 Thumbs.db
+nul
 
 # Build artifacts
 build/
@@ -31,3 +39,4 @@ build/
 # Project planning / agent instructions
 context/
 AGENTS.md
+.mimocode/

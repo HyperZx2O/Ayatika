@@ -103,7 +103,7 @@ static void test_visual(void) {
     SetExitKey(0);
 
     initThemes();
-    initFonts();
+    initFonts(NULL);
 
     AppState state;
     memset(&state, 0, sizeof(state));
