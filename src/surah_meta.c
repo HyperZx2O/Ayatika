@@ -25,6 +25,5 @@ static const Surah SURAH_META[TOTAL_SURAHS] = {
 
 void getSurahMeta(int surahNum, Surah *out) {
     if (surahNum < 1 || surahNum > TOTAL_SURAHS) return;
-    /* TODO: *out = SURAH_META[surahNum - 1]; once array is filled */
-    (void)out;
+    *out = SURAH_META[surahNum - 1];
 }

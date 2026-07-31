@@ -84,7 +84,10 @@ typedef enum {
     SCREEN_SEARCH,
     SCREEN_BOOKMARKS,
     SCREEN_SCREENSAVER,
-    SCREEN_SURAH_OVERVIEW
+    SCREEN_SURAH_OVERVIEW,
+    SCREEN_SETTINGS,
+    SCREEN_READING_HUB,
+    SCREEN_HADITH
 } AppScreen;
 
 /* ── Application state — accumulates fields from all 3 members.
@@ -99,7 +102,8 @@ typedef struct {
     AppScreen      previousScreen;
 
     /* Data (Backend) */
-    Surah         *surahs;             /* array of 114 */
+    Surah         *surahs;             /* array of surahCount entries */
+    int            surahCount;         /* number of surahs actually loaded */
     Ayah          *ayahs;               /* flat array of all ayahs */
     int            totalAyahs;
     Hadith        *hadiths;
@@ -111,6 +115,7 @@ typedef struct {
 
     /* UI (Frontend) */
     int            currentTheme;
+    int            dashboardCursor;     /* 0–5, panel focus on dashboard */
     int            focusMode;          /* 1 = dimmed background active */
     int            showHelp;
     char           statusMsg[256];
@@ -133,37 +138,48 @@ typedef struct {
     float          longitude;
     int            calcMethod;          /* 0 = Karachi, 1 = MWL, 2 = ISNA */
     char           language[8];         /* "en" or "bn" */
+
+    /* Navigation extras */
+    int            hubCursor;           /* 0 = Surah tile, 1 = Hadith tile in reading hub */
+    int            hadithCursor;        /* selected hadith in hadith page */
+    AppScreen      settingsOrigin;      /* screen active before settings was opened */
+
+    /* Settings */
+    int            vimMotions;          /* 1 = vim j/k/h/l bindings, 0 = arrows */
+    float          fontScale;           /* UI font multiplier, default 1.0 */
+    int            idleSeconds;         /* screensaver delay in seconds */
+    int            autoResume;          /* auto-resume last reading position */
 } AppState;
 
 /* ============================================================
- * PUBLIC API — Backend Engineer implements these
+ * PUBLIC API
  * ============================================================ */
 
 /* quran.c */
-int    loadQuranData(AppState *state);
-Ayah  *getAyah(AppState *state, int surahNum, int ayahNum);
-int    getAyahIndex(AppState *state, int surahNum, int ayahNum);
-int    getDailyAyahIndex(void);
+int   loadQuranData(AppState *state);
+Ayah *getAyah(AppState *state, int surahNum, int ayahNum);
+int   getAyahIndex(AppState *state, int surahNum, int ayahNum);
+int   getDailyAyahIndex(int totalAyahs);
 
 /* prayer.c */
-void   updatePrayerTimes(AppState *state);
-int    isProhibitedTime(PrayerTimes *pt);
-char  *getNextPrayerName(PrayerTimes *pt);
-float  getNextPrayerTime(PrayerTimes *pt);
-char  *formatCountdown(float targetTime);
+void  updatePrayerTimes(AppState *state);
+int   isProhibitedTime(PrayerTimes *pt);
+char *getNextPrayerName(PrayerTimes *pt);
+float getNextPrayerTime(PrayerTimes *pt);
+char *formatCountdown(float targetTime);
 
 /* db.c */
-int    initDatabase(void);
-int    saveBookmark(Bookmark *bm);
-int    loadBookmarks(Bookmark *out, int maxCount);
-int    deleteBookmark(int id);
-int    bookmarkExists(int surahNum, int ayahNum);
+int   initDatabase(void);
+int   saveBookmark(Bookmark *bm);
+int   loadBookmarks(Bookmark *out, int maxCount);
+int   deleteBookmark(int id);
+int   bookmarkExists(int surahNum, int ayahNum);
 
 /* surah_meta.c */
-void   getSurahMeta(int surahNum, Surah *out);
+void  getSurahMeta(int surahNum, Surah *out);
 
-/* config.c (part of Backend's db.c or a separate config.c) */
-void   loadConfig(AppState *state);
-void   saveConfig(AppState *state);
+/* config.c */
+void  loadConfig(AppState *state);
+void  saveConfig(AppState *state);
 
 #endif /* QURAN_H */

@@ -48,12 +48,4 @@ int bookmarkExists(int surahNum, int ayahNum) {
     return 0;
 }
 
-void loadConfig(AppState *state) {
-    (void)state;
-    /* TODO: read data/config.ini, fall back to Dhaka defaults if missing */
-}
 
-void saveConfig(AppState *state) {
-    (void)state;
-    /* TODO: write data/config.ini */
-}
