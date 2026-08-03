@@ -13,34 +13,72 @@
 #include <raylib.h>
 #include "audio.h"
 
-/* TODO: static Sound/Music handles + loaded flags */
+static Sound clickSound;
+static Sound surahSwitchSound;
+static Music natureMusic;
+
+static int clickLoaded       = 0;
+static int surahSwitchLoaded = 0;
+static int natureLoaded      = 0;
 
 void initAudio(void) {
     InitAudioDevice();
-    /* TODO: load azan.mp3, click.wav, surah_switch.wav, nature.ogg */
+
+    if (FileExists("assets/click.wav")) {
+        clickSound  = LoadSound("assets/click.wav");
+        clickLoaded = 1;
+    }
+    if (FileExists("assets/surah_switch.wav")) {
+        surahSwitchSound  = LoadSound("assets/surah_switch.wav");
+        surahSwitchLoaded = 1;
+    }
+    if (FileExists("assets/nature.ogg")) {
+        natureMusic  = LoadMusicStream("assets/nature.ogg");
+        natureLoaded = 1;
+        SetMusicVolume(natureMusic, 0.25f);
+        natureMusic.looping = 1;
+    }
 }
 
 void updateAudio(AppState *state) {
-    (void)state;
-    /* TODO: UpdateMusicStream for nature + recitation streams */
+    if (natureLoaded && state->isNatureSoundOn)
+        UpdateMusicStream(natureMusic);
 }
 
 void closeAudio(void) {
-    /* TODO: unload all sounds/music */
+    if (clickLoaded)       UnloadSound(clickSound);
+    if (surahSwitchLoaded) UnloadSound(surahSwitchSound);
+    if (natureLoaded)      UnloadMusicStream(natureMusic);
     CloseAudioDevice();
 }
 
-void playAzan(void)               { /* TODO */ }
-void stopAzan(void)                { /* TODO */ }
-int  isAzanPlaying(void)           { /* TODO */ return 0; }
+void playAzan(void)               { /* TODO (Phase 3) */ }
+void stopAzan(void)                { /* TODO (Phase 3) */ }
+int  isAzanPlaying(void)           { /* TODO (Phase 3) */ return 0; }
 
-void playRecitation(const char *audioUrl) { (void)audioUrl; /* TODO */ }
-void stopRecitation(void)                  { /* TODO */ }
-int  isRecitationPlaying(void)             { /* TODO */ return 0; }
+void playRecitation(const char *audioUrl) { (void)audioUrl; /* TODO (Phase 3) */ }
+void stopRecitation(void)                  { /* TODO (Phase 3) */ }
+int  isRecitationPlaying(void)             { /* TODO (Phase 3) */ return 0; }
 
-void startNatureSound(void)                { /* TODO */ }
-void stopNatureSound(void)                 { /* TODO */ }
-void toggleNatureSound(AppState *state)    { (void)state; /* TODO */ }
+void startNatureSound(void) {
+    if (natureLoaded && !IsMusicStreamPlaying(natureMusic))
+        PlayMusicStream(natureMusic);
+}
 
-void playClickSfx(void)            { /* TODO */ }
-void playSurahSwitchSfx(void)      { /* TODO */ }
+void stopNatureSound(void) {
+    if (natureLoaded) StopMusicStream(natureMusic);
+}
+
+void toggleNatureSound(AppState *state) {
+    state->isNatureSoundOn = !state->isNatureSoundOn;
+    if (state->isNatureSoundOn) startNatureSound();
+    else                        stopNatureSound();
+}
+
+void playClickSfx(void) {
+    if (clickLoaded) PlaySound(clickSound);
+}
+
+void playSurahSwitchSfx(void) {
+    if (surahSwitchLoaded) PlaySound(surahSwitchSound);
+}
