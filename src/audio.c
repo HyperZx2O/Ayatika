@@ -15,11 +15,15 @@
 
 static Sound clickSound;
 static Sound surahSwitchSound;
+static Sound azanSound;
 static Music natureMusic;
+static Music recitationStream;
 
 static int clickLoaded       = 0;
 static int surahSwitchLoaded = 0;
+static int azanLoaded        = 0;
 static int natureLoaded      = 0;
+static int recitationActive  = 0;
 
 void initAudio(void) {
     InitAudioDevice();
@@ -32,6 +36,10 @@ void initAudio(void) {
         surahSwitchSound  = LoadSound("assets/surah_switch.wav");
         surahSwitchLoaded = 1;
     }
+    if (FileExists("assets/azan.mp3")) {
+        azanSound  = LoadSound("assets/azan.mp3");
+        azanLoaded = 1;
+    }
     if (FileExists("assets/nature.ogg")) {
         natureMusic  = LoadMusicStream("assets/nature.ogg");
         natureLoaded = 1;
@@ -43,22 +51,59 @@ void initAudio(void) {
 void updateAudio(AppState *state) {
     if (natureLoaded && state->isNatureSoundOn)
         UpdateMusicStream(natureMusic);
+    if (recitationActive)
+        UpdateMusicStream(recitationStream);
 }
 
 void closeAudio(void) {
     if (clickLoaded)       UnloadSound(clickSound);
     if (surahSwitchLoaded) UnloadSound(surahSwitchSound);
+    if (azanLoaded)        UnloadSound(azanSound);
     if (natureLoaded)      UnloadMusicStream(natureMusic);
+    if (recitationActive)  UnloadMusicStream(recitationStream);
     CloseAudioDevice();
 }
 
-void playAzan(void)               { /* TODO (Phase 3) */ }
-void stopAzan(void)                { /* TODO (Phase 3) */ }
-int  isAzanPlaying(void)           { /* TODO (Phase 3) */ return 0; }
+void playAzan(void) {
+    if (azanLoaded && !IsSoundPlaying(azanSound))
+        PlaySound(azanSound);
+}
 
-void playRecitation(const char *audioUrl) { (void)audioUrl; /* TODO (Phase 3) */ }
-void stopRecitation(void)                  { /* TODO (Phase 3) */ }
-int  isRecitationPlaying(void)             { /* TODO (Phase 3) */ return 0; }
+void stopAzan(void) {
+    if (azanLoaded) StopSound(azanSound);
+}
+
+int isAzanPlaying(void) {
+    return azanLoaded && IsSoundPlaying(azanSound);
+}
+
+void playRecitation(const char *filePath) {
+    if (!filePath || filePath[0] == '\0') return;
+    if (recitationActive) {
+        StopMusicStream(recitationStream);
+        UnloadMusicStream(recitationStream);
+        recitationActive = 0;
+    }
+    if (!FileExists(filePath)) return;
+    recitationStream = LoadMusicStream(filePath);
+    if (recitationStream.frameCount > 0) {
+        recitationStream.looping = 0;
+        PlayMusicStream(recitationStream);
+        recitationActive = 1;
+    }
+}
+
+void stopRecitation(void) {
+    if (recitationActive) {
+        StopMusicStream(recitationStream);
+        UnloadMusicStream(recitationStream);
+        recitationActive = 0;
+    }
+}
+
+int isRecitationPlaying(void) {
+    return recitationActive;
+}
 
 void startNatureSound(void) {
     if (natureLoaded && !IsMusicStreamPlaying(natureMusic))
