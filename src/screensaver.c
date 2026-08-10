@@ -17,10 +17,29 @@
 #include "screensaver.h"
 #include "audio.h"
 
+#define CAT_FRAME_COUNT 6   /* frames in assets/cat.png; adjust if sheet differs */
+
 static int azanFired = 0;   /* only play Azan once per screensaver session */
 
+static Texture2D catSheet;
+static int       catLoaded       = 0;
+static int       catFrameCount   = CAT_FRAME_COUNT;
+static int       catFrameWidth   = 0;
+static int       catFrameHeight  = 0;
+static int       catCurrentFrame = 0;
+static float     catFrameTimer   = 0.0f;
+static float     catFrameSpeed   = 0.15f;  /* seconds per frame */
+
 void initScreensaver(void) {
-    azanFired = 0;
+    azanFired        = 0;
+    catCurrentFrame  = 0;
+    catFrameTimer    = 0.0f;
+    if (FileExists("assets/cat.png")) {
+        catSheet      = LoadTexture("assets/cat.png");
+        catLoaded     = 1;
+        catFrameWidth  = catSheet.width / catFrameCount;
+        catFrameHeight = catSheet.height;
+    }
 }
 
 void resetScreensaver(void) {
@@ -28,7 +47,10 @@ void resetScreensaver(void) {
 }
 
 void closeScreensaver(void) {
-    /* nothing to unload yet — cat texture added in Phase 5 */
+    if (catLoaded) {
+        UnloadTexture(catSheet);
+        catLoaded = 0;
+    }
 }
 
 void drawScreensaver(AppState *state) {
@@ -83,9 +105,45 @@ void drawScreensaver(AppState *state) {
     DrawText("Press any key to return",
              sw/2 - MeasureText("Press any key to return", 14)/2,
              sh - 40, 14, (Color){80, 75, 60, 255});
+
+    /* Sleeping cat — bottom-right corner */
+    drawCat(state);
 }
 
 void drawCat(AppState *state) {
     (void)state;
-    /* TODO: Phase 5 — DrawTexturePro with cycling source rectangle */
+    if (!catLoaded) return;
+
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
+
+    /* Advance animation frame */
+    catFrameTimer += GetFrameTime();
+    if (catFrameTimer >= catFrameSpeed) {
+        catCurrentFrame = (catCurrentFrame + 1) % catFrameCount;
+        catFrameTimer   = 0.0f;
+    }
+
+    /* Source rectangle: current frame from sprite sheet */
+    Rectangle src = {
+        (float)(catCurrentFrame * catFrameWidth),
+        0.0f,
+        (float)catFrameWidth,
+        (float)catFrameHeight
+    };
+
+    /* Destination: bottom-right corner */
+    float scale = 2.5f;   /* pixel art looks better scaled up */
+    Rectangle dst = {
+        (float)(sw - (int)(catFrameWidth  * scale) - 20),
+        (float)(sh - (int)(catFrameHeight * scale) - 50),
+        (float)(catFrameWidth  * scale),
+        (float)(catFrameHeight * scale)
+    };
+
+    DrawTexturePro(catSheet, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
+}
+
+int getCatCurrentFrame(void) {
+    return catCurrentFrame;
 }

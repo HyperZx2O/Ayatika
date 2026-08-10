@@ -15,5 +15,6 @@ void drawScreensaver(AppState *state);
 void drawCat(AppState *state);
 void resetScreensaver(void);
 void closeScreensaver(void);
+int  getCatCurrentFrame(void);   /* test seam: current animation frame index */
 
 #endif /* SCREENSAVER_H */
