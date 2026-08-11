@@ -5,6 +5,8 @@
 static Surah mockSurahs[] = {
     {1,  "Al-Fatiha", "الفاتحة", "The Opening", "Meccan", 7,
      "The first Surah revealed in full, known as the Mother of the Quran."},
+    {2,  "Al-Baqarah", "البقرة", "The Cow", "Medinan", 286,
+     "The longest Surah in the Quran, covering law, faith, and history."},
     {103, "Al-Asr", "العصر", "The Declining Day", "Meccan", 3,
      "A short but profound Surah about the loss mankind is in except those who believe."},
     {112, "Al-Ikhlas", "الإخلاص", "The Sincerity", "Meccan", 4,
@@ -32,6 +34,10 @@ static Ayah mockAyahs[] = {
     {114, 1, "قُلْ أَعُوذُ بِرَبِّ النَّاسِ", "Say, I seek refuge in the Lord of mankind,", "", ""},
     {114, 2, "مَلِكِ النَّاسِ", "The King of mankind,", "", ""},
     {114, 3, "إِلَٰهِ النَّاسِ", "The God of mankind,", "", ""},
+    {2, 157, "", "Those are the ones upon whom are blessings from their Lord and mercy, and it is they who are the rightly guided.", "", ""},
+    {2, 238, "", "Guard strictly the prayers, especially the middle prayer, and stand before Allah, devoutly obedient.", "", ""},
+    {2, 255, "", "Allah - there is no deity except Him, the Ever-Living, the Self-Sustaining. Neither drowsiness overtakes Him nor sleep. To Him belongs whatever is in the heavens and whatever is on the earth. Who is it that can intercede with Him except by His permission? He knows what is before them and what will be after them, and they encompass nothing of His knowledge except what He wills. His Kursi extends over the heavens and the earth, and their preservation tires Him not. And He is the Most High, the Most Great.", "", ""},
+    {2, 257, "", "Allah is the ally of those who believe; He brings them out from darknesses into the light.", "", ""},
 };
 
 static Hadith mockHadiths[] = {

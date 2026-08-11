@@ -118,7 +118,7 @@ int fts_fuzzy_match(char const *pattern, char const *str, int *outScore)
 {
     uint8_t matches[256];
     int recursionCount = 0;
-    int recursionLimit = 10;
+    int recursionLimit = 256;
     return fuzzy_match_recursive(pattern, str, outScore, str, 0, matches,
         sizeof(matches), 0, &recursionCount, recursionLimit);
 }
