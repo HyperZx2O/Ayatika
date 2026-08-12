@@ -3,7 +3,10 @@
  * Compile + run (standalone, headless — no window needed):
  *
  *   gcc -std=c11 -Wall -Wextra -Isrc -Ilib test_search.c \
- *       src/search.c src/mock_data.c -o test_search
+ *       src/search.c src/mock_data.c -lraylib -lm -o test_search
+ *
+ * (search.c now contains the drawSearch UI from Phase 7, so the link
+ * line needs raylib even though this harness never opens a window.)
  *
  * Exercises runSearch against the mock dataset: relevance for the
  * seeded queries, the surah-name boost, the minimum-length guard,
