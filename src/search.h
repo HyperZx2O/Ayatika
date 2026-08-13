@@ -10,9 +10,9 @@
 
 #include "quran.h"
 
-void runSearch(AppState *state, SearchResult *results, int *resultCount);
-void drawSearch(AppState *state, SearchResult *results, int resultCount);
-int  compareResults(const void *a, const void *b);
+void runSearch(AppState *state, SearchResult *results, int *resultCount); /* fuzzy-match the query against ayah translations + surah names; fill top-ranked results */
+void drawSearch(AppState *state, SearchResult *results, int resultCount); /* render the search screen; draw-only, input is routed by the frontend at integration */
+int  compareResults(const void *a, const void *b); /* qsort comparator for SearchResult, descending by score */
 
 /* Test seams — small pure logic extracted from drawSearch so the search
    screen's keyboard behaviour (typing, backspace, j/k navigation) can be
