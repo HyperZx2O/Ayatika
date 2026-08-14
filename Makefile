@@ -21,11 +21,34 @@ $(TARGET): $(SRC)
 run: $(TARGET)
 	./$(TARGET)
 
-test: test_systems
+# Phase 9: `make test` builds and runs every harness (audio, search, search
+# UI, screensaver, cat, and the full integration harness). Each prints
+# PASS/FAIL per check and exits non-zero if any check fails.
+test: test_audio test_search test_search_ui test_screensaver test_cat test_systems
+	./test_search
+	./test_audio
+	./test_search_ui
+	./test_screensaver
+	./test_cat
 	./test_systems --auto
 
-test_systems: src/audio.c src/screensaver.c src/search.c src/mock_data.c test_systems.c
-	$(CC) $(CFLAGS) src/audio.c src/screensaver.c src/search.c src/mock_data.c test_systems.c -lraylib -lm -o test_systems
+test_audio: test_audio.c src/audio.c src/mock_data.c
+	$(CC) $(CFLAGS) src/audio.c src/mock_data.c test_audio.c $(LIBS) -o test_audio
+
+test_search: test_search.c src/search.c src/mock_data.c
+	$(CC) $(CFLAGS) src/search.c src/mock_data.c test_search.c $(LIBS) -o test_search
+
+test_search_ui: test_search_ui.c src/search.c src/mock_data.c
+	$(CC) $(CFLAGS) src/search.c src/mock_data.c test_search_ui.c $(LIBS) -o test_search_ui
+
+test_screensaver: test_screensaver.c src/audio.c src/screensaver.c src/mock_data.c
+	$(CC) $(CFLAGS) src/audio.c src/screensaver.c src/mock_data.c test_screensaver.c $(LIBS) -o test_screensaver
+
+test_cat: test_cat.c src/audio.c src/screensaver.c src/mock_data.c
+	$(CC) $(CFLAGS) src/audio.c src/screensaver.c src/mock_data.c test_cat.c $(LIBS) -o test_cat
+
+test_systems: test_systems.c src/audio.c src/screensaver.c src/search.c src/mock_data.c
+	$(CC) $(CFLAGS) src/audio.c src/screensaver.c src/search.c src/mock_data.c test_systems.c $(LIBS) -o test_systems
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) test_audio test_search test_search_ui test_screensaver test_cat test_systems
