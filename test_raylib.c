@@ -7,37 +7,34 @@
 
 int main(void) {
     InitWindow(400, 200, "audio test");
-    InitAudioDevice();
 
-    if (IsAudioDeviceReady()) {
-        AppState state;
-        memset(&state, 0, sizeof(AppState));
-        loadMockData(&state);
+    AppState state;
+    memset(&state, 0, sizeof(AppState));
+    loadMockData(&state);
 
-        initAudio();
-        playClickSfx();
-        WaitTime(1.0);
-        playSurahSwitchSfx();
-        WaitTime(1.0);
+    /* initAudio() owns the audio device — do not call InitAudioDevice()
+       here too, it is not re-entrant and crashes on a live device. */
+    initAudio();
+    playClickSfx();
+    WaitTime(1.0);
+    playSurahSwitchSfx();
+    WaitTime(1.0);
 
-        toggleNatureSound(&state);
-        WaitTime(2.0);
-        toggleNatureSound(&state);
+    toggleNatureSound(&state);
+    WaitTime(2.0);
+    toggleNatureSound(&state);
 
-        startNatureSound();
-        stopNatureSound();
+    startNatureSound();
+    stopNatureSound();
 
-        playAzan();
-        WaitTime(1.0);
-        stopAzan();
+    playAzan();
+    WaitTime(1.0);
+    stopAzan();
 
-        closeAudio();
+    closeAudio();
 
-        initScreensaver();
-        closeScreensaver();
-    }
-
-    CloseAudioDevice();
+    initScreensaver();
+    closeScreensaver();
     CloseWindow();
 
     return 0;
