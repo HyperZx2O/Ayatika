@@ -4,6 +4,9 @@ ayatika
 *.out
 *.exe
 
+# Throwaway test drivers (not committed long-term)
+test_*.c
+
 # Runtime-generated data (not committed — created on first run)
 data/quran.json
 data/translation_en.json
@@ -15,6 +18,9 @@ data/config.ini
 
 # Keep the data/ folder structure but ignore its generated contents
 !data/.gitkeep
+
+# Planning documents (implementation plan per member)
+context/
 
 # Editor / OS junk
 .vscode/
