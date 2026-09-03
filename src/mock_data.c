@@ -1,303 +1,127 @@
 #include <string.h>
 #include <stdlib.h>
-#include <time.h>
 #include "mock_data.h"
 
-static void setSurah(Surah *s, int number, const char *name, const char *arabic,
-                     const char *meaning, const char *type, int count, const char *ctx) {
-    s->number = number;
-    strncpy(s->name, name, sizeof(s->name) - 1);
-    strncpy(s->arabicName, arabic, sizeof(s->arabicName) - 1);
-    strncpy(s->meaning, meaning, sizeof(s->meaning) - 1);
-    strncpy(s->revelationType, type, sizeof(s->revelationType) - 1);
-    s->ayahCount = count;
-    strncpy(s->context, ctx, sizeof(s->context) - 1);
-}
+static Surah mockSurahs[] = {
+    {1,  "Al-Fatiha", "الفاتحة", "The Opening", "Meccan", 7,
+     "The first Surah revealed in full, known as the Mother of the Quran."},
+    {2,  "Al-Baqarah", "البقرة", "The Cow", "Medinan", 286,
+     "The longest Surah in the Quran, covering law, faith, and history."},
+    {103, "Al-Asr", "العصر", "The Declining Day", "Meccan", 3,
+     "A short but profound Surah about the loss mankind is in except those who believe."},
+    {112, "Al-Ikhlas", "الإخلاص", "The Sincerity", "Meccan", 4,
+     "Declares the absolute oneness of Allah. Equivalent to one-third of the Quran."},
+    {113, "Al-Falaq", "الفلق", "The Daybreak", "Meccan", 5,
+     "A prayer seeking protection from the evil of creation."},
+    {114, "An-Nas", "الناس", "Mankind", "Meccan", 6,
+     "A prayer seeking refuge in Allah from the whisperings of Shaytan."}
+};
 
-static void setAyah(Ayah *a, int surah, int ayah, const char *arabic,
-                    const char *en, const char *bn) {
-    a->surahNumber = surah;
-    a->ayahNumber = ayah;
-    strncpy(a->arabicText, arabic, sizeof(a->arabicText) - 1);
-    strncpy(a->translationEn, en, sizeof(a->translationEn) - 1);
-    strncpy(a->translationBn, bn, sizeof(a->translationBn) - 1);
-    strncpy(a->audioUrl, "", sizeof(a->audioUrl) - 1);
-}
+static Ayah mockAyahs[] = {
+    {1, 1, "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "In the name of Allah, the Most Gracious, the Most Merciful.", "", ""},
+    {1, 2, "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ", "All praise and thanks are for Allah, the Lord of all worlds.", "", ""},
+    {1, 3, "الرَّحْمَٰنِ الرَّحِيمِ", "The Most Gracious, the Most Merciful.", "", ""},
+    {1, 4, "مَالِكِ يَوْمِ الدِّينِ", "The Sovereign of the Day of Judgment.", "", ""},
+    {1, 5, "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ", "You alone we worship, and You alone we ask for help.", "", ""},
+    {103, 1, "وَالْعَصْرِ", "By the declining day,", "", ""},
+    {103, 2, "إِنَّ الْإِنْسَانَ لَفِي خُسْرٍ", "Indeed, mankind is in loss,", "", ""},
+    {103, 3, "إِلَّا الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ", "Except those who believe and do righteous deeds.", "", ""},
+    {112, 1, "قُلْ هُوَ اللَّهُ أَحَدٌ", "Say, He is Allah, the One.", "", ""},
+    {112, 2, "اللَّهُ الصَّمَدُ", "Allah, the Eternal, the Absolute.", "", ""},
+    {112, 3, "لَمْ يَلِدْ وَلَمْ يُولَدْ", "He neither begets nor is born.", "", ""},
+    {113, 1, "قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ", "Say, I seek refuge in the Lord of the daybreak,", "", ""},
+    {113, 2, "مِنْ شَرِّ مَا خَلَقَ", "From the evil of what He has created,", "", ""},
+    {114, 1, "قُلْ أَعُوذُ بِرَبِّ النَّاسِ", "Say, I seek refuge in the Lord of mankind,", "", ""},
+    {114, 2, "مَلِكِ النَّاسِ", "The King of mankind,", "", ""},
+    {114, 3, "إِلَٰهِ النَّاسِ", "The God of mankind,", "", ""},
+    {2, 157, "", "Those are the ones upon whom are blessings from their Lord and mercy, and it is they who are the rightly guided.", "", ""},
+    {2, 238, "", "Guard strictly the prayers, especially the middle prayer, and stand before Allah, devoutly obedient.", "", ""},
+    {2, 255, "", "Allah - there is no deity except Him, the Ever-Living, the Self-Sustaining. Neither drowsiness overtakes Him nor sleep. To Him belongs whatever is in the heavens and whatever is on the earth. Who is it that can intercede with Him except by His permission? He knows what is before them and what will be after them, and they encompass nothing of His knowledge except what He wills. His Kursi extends over the heavens and the earth, and their preservation tires Him not. And He is the Most High, the Most Great.", "", ""},
+    {2, 257, "", "Allah is the ally of those who believe; He brings them out from darknesses into the light.", "", ""},
+    // ponytail: 20 extra mock ayahs for variety; avoid mercy/prayer/light/Kursi keywords to keep seeded search pins stable
+    {2, 286, "", "The Messenger has believed in what was revealed to him from his Lord, and so have the believers.", "", ""},
+    {3, 190, "", "Indeed, in the creation of the heavens and the earth are signs for those of understanding.", "", ""},
+    {3, 159, "", "So by mercy from Allah, you were lenient with them; and if you had been harsh, they would have dispersed.", "", ""},
+    {36, 1, "", "Ya Sin. By the wise Quran.", "", ""},
+    {36, 58, "", "Peace - a word from a Merciful Lord.", "", ""},
+    {55, 1, "", "The Most Merciful taught the Quran.", "", ""},
+    {55, 13, "", "So which of the favors of your Lord would you deny?", "", ""},
+    {67, 1, "", "Blessed is He in whose hand is dominion, and He is over all things competent.", "", ""},
+    {67, 15, "", "It is He who made the earth tame for you - so walk among its slopes and eat of His provision.", "", ""},
+    {49, 13, "", "O mankind, indeed We have created you from male and female and made you peoples and tribes that you may know one another.", "", ""},
+    {93, 5, "", "And your Lord is going to give you, and you will be satisfied.", "", ""},
+    {94, 6, "", "Indeed, with hardship comes ease.", "", ""},
+    {2, 153, "", "O you who have believed, seek help through patience and perseverance.", "", ""},
+    {2, 152, "", "So remember Me; I will remember you. And be grateful to Me and do not deny Me.", "", ""},
+    {31, 14, "", "And We have enjoined upon man care for his parents; his mother carried him in weakness upon weakness.", "", ""},
+    {17, 23, "", "And your Lord has decreed that you not worship except Him, and to parents, good treatment.", "", ""},
+    {4, 135, "", "O you who have believed, be persistently standing firm in justice, witnesses for Allah.", "", ""},
+    {5, 8, "", "O you who have believed, be persistently standing firm for Allah, witnesses in justice.", "", ""},
+    {16, 90, "", "Indeed, Allah orders justice and good conduct and giving to relatives.", "", ""},
+    {13, 28, "", "Those who have believed and whose hearts are assured by the remembrance of Allah.", "", ""},
+};
+
+static Hadith mockHadiths[] = {
+    {"Hadith 1", "Actions are judged by intentions, and every person will get the reward according to what he has intended.",
+     "Umar ibn Al-Khattab", "Bukhari"},
+    {"Hadith 2", "The best among you are those who have the best manners and character.",
+     "Abdullah ibn Amr", "Bukhari"},
+    {"Hadith 3", "None of you will have faith till he wishes for his brother what he likes for himself.",
+     "Anas ibn Malik", "Bukhari"},
+    {"Hadith 4", "Make things easy, not difficult, and give glad tidings and do not drive people away.",
+     "Anas ibn Malik", "Bukhari"},
+    {"Hadith 5", "The strong person is not the one who can wrestle well but the one who controls himself when angry.",
+     "Abu Hurairah", "Bukhari"},
+    {"Hadith 6", "A good word is charity. Every step taken towards prayer is charity.",
+     "Abu Hurairah", "Bukhari"},
+    {"Hadith 7", "Smiling at your brother is charity, enjoining good is charity, and forbidding evil is charity.",
+     "Abu Dharr", "Bukhari"},
+    {"Hadith 8", "The most beloved deed to Allah is the most regular and constant even if it were little.",
+     "Aisha", "Bukhari"},
+    {"Hadith 9", "Seek knowledge from the cradle to the grave.",
+     "Anas ibn Malik", "Muslim"},
+    {"Hadith 10", "The best of you are those who learn the Quran and teach it.",
+     "Uthman ibn Affan", "Bukhari"},
+    {"Hadith 11", "Cleanliness is half of faith.",
+     "Abu Malik al-Ashari", "Muslim"},
+    {"Hadith 12", "Do not look down upon any good deed, even meeting your brother with a cheerful face.",
+     "Abu Dharr", "Muslim"},
+};
 
 void loadMockData(AppState *state) {
-    /* ── Surahs ── */
-    state->surahs = (Surah *)malloc(7 * sizeof(Surah));
-    if (!state->surahs) return;
+    state->surahs = mockSurahs;
+    state->ayahs = mockAyahs;
+    state->totalAyahs = sizeof(mockAyahs) / sizeof(mockAyahs[0]);
+    state->hadiths = mockHadiths;
+    state->totalHadiths = sizeof(mockHadiths) / sizeof(mockHadiths[0]);
 
-    setSurah(&state->surahs[0], 1, "Al-Fatiha", "الفاتحة",
-             "The Opening", "Meccan", 7,
-             "This Meccan surah is the essence of the Quran's message — praise, mercy, and guidance. It is recited in every unit of the Muslim prayer.");
-    setSurah(&state->surahs[1], 2, "Al-Baqarah", "البقرة",
-             "The Cow", "Medinan", 286,
-             "The longest surah in the Quran, revealed in Medina. It covers a wide range of legal, social, and spiritual guidance for the Muslim community.");
-    setSurah(&state->surahs[2], 112, "Al-Ikhlas", "الإخلاص",
-             "The Sincerity", "Meccan", 4,
-             "A concise declaration of God's absolute oneness. The Prophet said this surah equals one-third of the Quran in meaning.");
-    setSurah(&state->surahs[3], 113, "Al-Falaq", "الفَلَق",
-             "The Daybreak", "Meccan", 5,
-             "A prayer seeking refuge from the evil of creation, darkness, and envy. Revealed alongside An-Nas as the two 'protecting' surahs.");
-    setSurah(&state->surahs[4], 114, "An-Nas", "النَّاس",
-             "Mankind", "Meccan", 6,
-             "The final surah of the Quran. A prayer for refuge from the whisperer who retreats, among jinn and humankind.");
-    setSurah(&state->surahs[5], 103, "Al-Asr", "العَصْر",
-             "The Time", "Meccan", 3,
-             "A short but profound surah: all of humanity is in loss except those who believe, do good, and encourage truth and patience.");
-    setSurah(&state->surahs[6], 108, "Al-Kawthar", "الكَوْثَر",
-             "The Abundance", "Meccan", 3,
-              "The shortest surah in the Quran. A promise of abundant blessings to the Prophet and a command to pray and sacrifice.");
-
-    state->surahCount = 7;
-
-    /* ── Ayahs (flat array) ── */
-    int total = 0;
-    /* Al-Fatiha: 7 ayahs */
-    Ayah ayat[22];
-
-    setAyah(&ayat[total++], 1, 1,
-        "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
-        "In the name of Allah, the Most Gracious, the Most Merciful.",
-        "শুরু করছি আল্লাহর নামে, যিনি পরম করুণাময়, অসীম দয়ালু।");
-
-    setAyah(&ayat[total++], 1, 2,
-        "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
-        "Praise be to Allah, the Lord of all the worlds.",
-        "সমস্ত প্রশংসা আল্লাহর, যিনি সমগ্র বিশ্ব জাহানের প্রতিপালক।");
-
-    setAyah(&ayat[total++], 1, 3,
-        "الرَّحْمَٰنِ الرَّحِيمِ",
-        "The Most Gracious, the Most Merciful.",
-        "যিনি পরম করুণাময়, অসীম দয়ালু।");
-
-    setAyah(&ayat[total++], 1, 4,
-        "مَالِكِ يَوْمِ الدِّينِ",
-        "Master of the Day of Judgment.",
-        "যিনি বিচার দিনের মালিক।");
-
-    setAyah(&ayat[total++], 1, 5,
-        "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ",
-        "You alone we worship, and You alone we ask for help.",
-        "আমরা শুধুমাত্র তোমারই ইবাদত করি এবং শুধুমাত্র তোমারই সাহায্য প্রার্থনা করি।");
-
-    setAyah(&ayat[total++], 1, 6,
-        "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ",
-        "Guide us to the straight path.",
-        "আমাদেরকে সরল পথ দেখাও।");
-
-    setAyah(&ayat[total++], 1, 7,
-        "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ",
-        "The path of those You have blessed — not of those who earned Your anger, nor of those who went astray.",
-        "তাদের পথ, যাদেরকে তুমি নিয়ামত দান করেছ, তাদের পথ নয় যাদের উপর তোমার গযব নাযিল হয়েছে এবং তাদের পথ নয় যারা পথভ্রষ্ট হয়েছে।");
-
-    /* Al-Baqarah: first 3 + Ayat al-Kursi */
-    setAyah(&ayat[total++], 2, 1,
-        "الٓمٓ",
-        "Alif, Lam, Meem.",
-        "আলিফ, লাম, মীম।");
-
-    setAyah(&ayat[total++], 2, 2,
-        "ذَٰلِكَ الْكِتَابُ لَا رَيْبَ ۛ فِيهِ ۛ هُدًى لِّلْمُتَّقِينَ",
-        "This is the Book about which there is no doubt — a guidance for the righteous.",
-        "এটি সেই কিতাব যাতে কোনো সন্দেহ নেই, এটি মুত্তাকীদের জন্য পথনির্দেশ।");
-
-    setAyah(&ayat[total++], 2, 3,
-        "الَّذِينَ يُؤْمِنُونَ بِالْغَيْبِ وَيُقِيمُونَ الصَّلَاةَ وَمِمَّا رَزَقْنَاهُمْ يُنفِقُونَ",
-        "Those who believe in the unseen, establish prayer, and spend from what We have provided them.",
-        "যারা গায়েবে বিশ্বাস করে, নামাজ প্রতিষ্ঠা করে এবং আমি তাদের যা দিয়েছি তা থেকে ব্যয় করে।");
-
-    setAyah(&ayat[total++], 2, 255,
-        "اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ ۚ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ ۚ لَهُ مَا فِي السَّمَاوَاتِ وَمَا فِي الْأَرْضِ ۗ مَن ذَا الَّذِي يَشْفَعُ عِندَهُ إِلَّا بِإِذْنِهِ ۚ يَعْلَمُ مَا بَيْنَ أَيْدِيهِمْ وَمَا خَلْفَهُمْ ۖ وَلَا يُحِيطُونَ بِشَيْءٍ مِّنْ عِلْمِهِ إِلَّا بِمَا شَاءَ ۚ وَسِعَ كُرْسِيُّهُ السَّمَاوَاتِ وَالْأَرْضَ ۖ وَلَا يَئُودُهُ حِفْظُهُمَا ۚ وَهُوَ الْعَلِيُّ الْعَظِيمُ",
-        "Allah — there is no god but Him, the Ever-Living, the Self-Sustaining. Neither slumber nor sleep overtakes Him. To Him belongs all that is in the heavens and all that is on the earth...",
-        "আল্লাহ, তিনি ছাড়া কোনো মা'বুদ নেই, তিনি চিরঞ্জীব, সবকিছুর ধারক। তাঁকে তন্দ্রা বা নিদ্রা স্পর্শ করতে পারে না...");
-
-    /* Al-Ikhlas: 4 ayahs */
-    setAyah(&ayat[total++], 112, 1,
-        "قُلْ هُوَ اللَّهُ أَحَدٌ",
-        "Say: He is Allah, the One.",
-        "বলুন: তিনি আল্লাহ, এক।");
-
-    setAyah(&ayat[total++], 112, 2,
-        "اللَّهُ الصَّمَدُ",
-        "Allah, the Eternal, the Absolute.",
-        "আল্লাহ, তিনি অমুখাপেক্ষী।");
-
-    setAyah(&ayat[total++], 112, 3,
-        "لَمْ يَلِدْ وَلَمْ يُولَدْ",
-        "He neither begets nor is born.",
-        "তিনি কাউকে জন্ম দেননি এবং তাঁকেও কেউ জন্ম দেয়নি।");
-
-    setAyah(&ayat[total++], 112, 4,
-        "وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ",
-        "Nor is there to Him any equivalent.",
-        "এবং তাঁর সমতুল্য কেউ নেই।");
-
-    /* An-Nas: first 2 */
-    setAyah(&ayat[total++], 114, 1,
-        "قُلْ أَعُوذُ بِرَبِّ النَّاسِ",
-        "Say: I seek refuge in the Lord of mankind.",
-        "বলুন: আমি আশ্রয় চাই মানুষের প্রতিপালকের।");
-
-    setAyah(&ayat[total++], 114, 2,
-        "مَلِكِ النَّاسِ",
-        "The King of mankind.",
-        "মানুষের অধিপতির।");
-
-    /* Al-Kawthar: 3 ayahs */
-    setAyah(&ayat[total++], 108, 1,
-        "إِنَّا أَعْطَيْنَاكَ الْكَوْثَرَ",
-        "Indeed, We have granted you Al-Kawthar (abundant good).",
-        "নিশ্চয়ই আমরা আপনাকে আল-কাওসার দান করেছি।");
-
-    setAyah(&ayat[total++], 108, 2,
-        "فَصَلِّ لِرَبِّكَ وَانْحَرْ",
-        "So pray to your Lord and sacrifice.",
-        "অতএব, আপনার প্রতিপালকের উদ্দেশ্যে নামাজ পড়ুন এবং কোরবানি করুন।");
-
-    setAyah(&ayat[total++], 108, 3,
-        "إِنَّ شَانِئَكَ هُوَ الْأَبْتَرُ",
-        "Indeed, your enemy is the one cut off.",
-        "নিশ্চয়ই আপনার শত্রুই নির্বংশ।");
-
-    state->ayahs = (Ayah *)malloc(total * sizeof(Ayah));
-    if (state->ayahs) {
-        memcpy(state->ayahs, ayat, total * sizeof(Ayah));
-        state->totalAyahs = total;
-    }
-
-    /* ── Hadith ── */
-    state->totalHadiths = 6;
-    state->hadiths = (Hadith *)malloc(state->totalHadiths * sizeof(Hadith));
-    if (state->hadiths) {
-        Hadith h[6];
-        strncpy(h[0].name, "Sahih Bukhari", sizeof(h[0].name) - 1);
-        strncpy(h[0].text, "The best among you are those who learn the Quran and teach it.", sizeof(h[0].text) - 1);
-        strncpy(h[0].narrator, "Narrated by Uthman ibn Affan", sizeof(h[0].narrator) - 1);
-        strncpy(h[0].collection, "Bukhari", sizeof(h[0].collection) - 1);
-
-        strncpy(h[1].name, "Sahih Bukhari", sizeof(h[1].name) - 1);
-        strncpy(h[1].text, "Actions are judged by intentions, and every person will get the reward according to what he has intended.", sizeof(h[1].text) - 1);
-        strncpy(h[1].narrator, "Narrated by Umar ibn al-Khattab", sizeof(h[1].narrator) - 1);
-        strncpy(h[1].collection, "Bukhari", sizeof(h[1].collection) - 1);
-
-        strncpy(h[2].name, "Sahih Bukhari", sizeof(h[2].name) - 1);
-        strncpy(h[2].text, "None of you truly believes until he loves for his brother what he loves for himself.", sizeof(h[2].text) - 1);
-        strncpy(h[2].narrator, "Narrated by Anas ibn Malik", sizeof(h[2].narrator) - 1);
-        strncpy(h[2].collection, "Bukhari", sizeof(h[2].collection) - 1);
-
-        strncpy(h[3].name, "Sahih Bukhari", sizeof(h[3].name) - 1);
-        strncpy(h[3].text, "Whoever recites the last two verses of Surah Al-Baqarah at night, they will be sufficient for him.", sizeof(h[3].text) - 1);
-        strncpy(h[3].narrator, "Narrated by Abu Mas'ud al-Ansari", sizeof(h[3].narrator) - 1);
-        strncpy(h[3].collection, "Bukhari", sizeof(h[3].collection) - 1);
-
-        strncpy(h[4].name, "Sahih Muslim", sizeof(h[4].name) - 1);
-        strncpy(h[4].text, "Kindness is a mark of faith, and whoever is not kind has no faith.", sizeof(h[4].text) - 1);
-        strncpy(h[4].narrator, "Narrated by Aisha", sizeof(h[4].narrator) - 1);
-        strncpy(h[4].collection, "Muslim", sizeof(h[4].collection) - 1);
-
-        strncpy(h[5].name, "Sahih Muslim", sizeof(h[5].name) - 1);
-        strncpy(h[5].text, "The world is a prison for the believer and a paradise for the disbeliever.", sizeof(h[5].text) - 1);
-        strncpy(h[5].narrator, "Narrated by Abu Huraira", sizeof(h[5].narrator) - 1);
-        strncpy(h[5].collection, "Muslim", sizeof(h[5].collection) - 1);
-
-        memcpy(state->hadiths, h, state->totalHadiths * sizeof(Hadith));
-    }
-
-    /* ── Bookmarks ── */
-    /* We store bookmarks inline for now */
-    /* ── Prayer Times ── */
-    PrayerTimes *pt = &state->prayer;
-    strncpy(pt->fajrStr, "04:42", sizeof(pt->fajrStr) - 1);
-    strncpy(pt->dhuhrStr, "12:14", sizeof(pt->dhuhrStr) - 1);
-    strncpy(pt->asrStr, "16:02", sizeof(pt->asrStr) - 1);
-    strncpy(pt->maghribStr, "18:48", sizeof(pt->maghribStr) - 1);
-    strncpy(pt->ishaStr, "20:04", sizeof(pt->ishaStr) - 1);
-    pt->fajr = 4.7f;
-    pt->sunrise = 5.9f;
-    pt->dhuhr = 12.23f;
-    pt->asr = 16.03f;
-    pt->maghrib = 18.8f;
-    pt->isha = 20.07f;
-    pt->prohibitedActive = 0;
-    strncpy(pt->prohibitedLabel, "", sizeof(pt->prohibitedLabel) - 1);
-
-    /* ── Nav defaults ── */
     state->currentSurah = 1;
     state->currentAyah = 1;
-    state->cursorSurah = 0;
     state->currentScreen = SCREEN_DASHBOARD;
     state->previousScreen = SCREEN_DASHBOARD;
-    state->currentTheme = 0;
-    state->focusMode = 0;
-    state->showHelp = 0;
-    state->dashboardCursor = 0;
-    state->lastInputTime = 0.0;
-    state->catVisible = 0;
     state->searchResultCount = 0;
     state->searchQuery[0] = '\0';
-    strncpy(state->statusMsg, "Press ? for help | j/k to navigate | Enter to open",
-            sizeof(state->statusMsg) - 1);
-    strncpy(state->language, "en", sizeof(state->language) - 1);
 
-    /* Settings defaults */
-    state->vimMotions  = 0;
-    state->fontScale   = 1.0f;
-    state->idleSeconds = 120;
-    state->autoResume  = 1;
+    state->prayer.fajr = 5.0f;
+    state->prayer.sunrise = 6.5f;
+    state->prayer.dhuhr = 12.5f;
+    state->prayer.asr = 16.0f;
+    state->prayer.maghrib = 18.0f;
+    state->prayer.isha = 19.75f;
+    strncpy(state->prayer.fajrStr, "5:00 AM", 15);
+    strncpy(state->prayer.sunriseStr, "6:30 AM", 15);
+    strncpy(state->prayer.dhuhrStr, "12:30 PM", 15);
+    strncpy(state->prayer.asrStr, "4:00 PM", 15);
+    strncpy(state->prayer.maghribStr, "6:00 PM", 15);
+    strncpy(state->prayer.ishaStr, "7:45 PM", 15);
 
-    /* ── Bookmark timestamps (relative to now for demo) ── */
-    long now = time(NULL);
-    mockBookmarks[0].timestamp = now - 120;       /* 2m ago */
-    mockBookmarks[1].timestamp = now - 7200;      /* 2h ago */
-    mockBookmarks[2].timestamp = now - 172800;    /* 2d ago */
-}
+    state->prayer.prohibitedActive = 0;
+    state->prayer.prohibitedLabel[0] = '\0';
 
-Ayah *findMockAyah(AppState *state, int surahNum, int ayahNum) {
-    for (int i = 0; i < state->totalAyahs; i++) {
-        if (state->ayahs[i].surahNumber == surahNum &&
-            state->ayahs[i].ayahNumber == ayahNum)
-            return &state->ayahs[i];
-    }
-    return NULL;
-}
+    state->isPlayingRecitation = 0;
+    state->isNatureSoundOn = 0;
+    state->lastInputTime = 0;
+    state->catVisible = 0;
 
-long getMockBookmarkTimestamp(int surah, int ayah) {
-    for (int i = 0; i < mockBookmarkCount; i++)
-        if (mockBookmarks[i].surahNumber == surah &&
-            mockBookmarks[i].ayahNumber == ayah)
-            return mockBookmarks[i].timestamp;
-    return 0;
-}
-
-/* ── Mock bookmarks (shared between ui.c and input.c) ── */
-Bookmark mockBookmarks[128] = {
-    {1, 1, 1, "Favorite", "Opening verse of the Quran", 1718000000},
-    {2, 112, 1, "Memorize", "Short surah to memorize this week", 1718100000},
-    {3, 2, 255, "Ayat al-Kursi", "The Throne Verse for daily recitation", 1718200000},
-};
-int mockBookmarkCount = 3;
-
-static int isBookmarkDuplicate(int surah, int ayah) {
-    for (int i = 0; i < mockBookmarkCount; i++)
-        if (mockBookmarks[i].surahNumber == surah &&
-            mockBookmarks[i].ayahNumber == ayah)
-            return 1;
-    return 0;
-}
-
-int addMockBookmark(int surah, int ayah) {
-    if (isBookmarkDuplicate(surah, ayah)) return 0;
-    if (mockBookmarkCount >= 128) return 0;
-    Bookmark *bm = &mockBookmarks[mockBookmarkCount];
-    bm->id = mockBookmarkCount + 1;
-    bm->surahNumber = surah;
-    bm->ayahNumber = ayah;
-    bm->tag[0] = '\0';
-    bm->note[0] = '\0';
-    bm->timestamp = time(NULL);
-    mockBookmarkCount++;
-    return 1;
+    strncpy(state->language, "en", 7);
 }

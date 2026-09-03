@@ -156,6 +156,31 @@ typedef struct {
  * ============================================================ */
 
 /* quran.c */
-int    getDailyAyahIndex(int totalAyahs);
+int   loadQuranData(AppState *state);
+Ayah *getAyah(AppState *state, int surahNum, int ayahNum);
+int   getAyahIndex(AppState *state, int surahNum, int ayahNum);
+int   getDailyAyahIndex(int totalAyahs);
+
+/* prayer.c */
+void  updatePrayerTimes(AppState *state);
+int   isProhibitedTime(PrayerTimes *pt);
+char *getNextPrayerName(PrayerTimes *pt);
+float getNextPrayerTime(PrayerTimes *pt);
+char *formatCountdown(float targetTime);
+
+/* db.c */
+int   initDatabase(void);
+void  closeDatabase(void);
+int   saveBookmark(Bookmark *bm);
+int   loadBookmarks(Bookmark *out, int maxCount);
+int   deleteBookmark(int id);
+int   bookmarkExists(int surahNum, int ayahNum);
+
+/* surah_meta.c */
+void  getSurahMeta(int surahNum, Surah *out);
+
+/* config.c */
+void  loadConfig(AppState *state);
+void  saveConfig(AppState *state);
 
 #endif /* QURAN_H */
