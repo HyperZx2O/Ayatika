@@ -13,6 +13,7 @@
 #include <raylib.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include "screensaver.h"
 #include "audio.h"
@@ -84,6 +85,10 @@ void drawScreensaver(AppState *state) {
     DrawCircleLines(cx, cy, 60.0f + sinf(t) * 5.0f,
                     (Color){180, 140, 60, 80});
 
+    // ponytail: ASCII placeholder until Frontend's drawArabicTextCentered lands
+    const char *bismillah = "[Bismillah - Arabic text]";
+    DrawText(bismillah, cx - MeasureText(bismillah, 24)/2, cy + 110, 24, (Color){220, 210, 185, 255});
+
     /* Current time */
     time_t now = time(NULL);
     struct tm *now_tm = localtime(&now);
@@ -146,4 +151,54 @@ void drawCat(AppState *state) {
 
 int getCatCurrentFrame(void) {
     return catCurrentFrame;
+}
+
+// ponytail: deterministic Hadith-of-Day; stdlib time only, no extra deps
+int getHadithIndexForYday(int yday, int total) {
+    if (total <= 0) return 0;
+    int idx = yday % total;
+    if (idx < 0) idx += total;
+    return idx;
+}
+
+void drawHadithPanel(AppState *state, int x, int y, int w, int h) {
+    if (!state || !state->hadiths || state->totalHadiths == 0) return;
+    if (w < 40 || h < 40) return;
+    time_t t = time(NULL);
+    struct tm *tmv = localtime(&t);
+    int idx = getHadithIndexForYday(tmv ? tmv->tm_yday : 0, state->totalHadiths);
+    Hadith *hd = &state->hadiths[idx];
+
+    Color panel = (Color){28, 24, 20, 255};
+    Color muted = (Color){120, 110, 90, 255};
+    Color text  = (Color){220, 210, 185, 255};
+    Color accent= (Color){180, 140, 60, 255};
+
+    DrawRectangleRounded((Rectangle){(float)x,(float)y,(float)w,(float)h}, 0.05f, 6, panel);
+    // narrator
+    DrawText(hd->narrator, x+12, y+10, 13, muted);
+    // body: simple word-wrap at w-24, truncate if overflows h
+    int maxW = w - 24;
+    int lineH = 16;
+    int curY = y + 30;
+    char buf[1024]; strncpy(buf, hd->text, sizeof(buf)-1); buf[sizeof(buf)-1]='\0';
+    char *word = strtok(buf, " ");
+    char line[256] = {0};
+    while (word) {
+        char test[300];
+        if (line[0]) snprintf(test, sizeof(test), "%s %s", line, word);
+        else snprintf(test, sizeof(test), "%s", word);
+        if (MeasureText(test, 14) > maxW && line[0]) {
+            if (curY + lineH > y + h - 24) break;
+            DrawText(line, x+12, curY, 14, text);
+            curY += lineH;
+            strncpy(line, word, sizeof(line)-1);
+        } else {
+            strncpy(line, test, sizeof(line)-1);
+        }
+        word = strtok(NULL, " ");
+    }
+    if (line[0] && curY + lineH <= y + h - 22) DrawText(line, x+12, curY, 14, text);
+    // collection bottom-right
+    DrawText(hd->collection, x + w - MeasureText(hd->collection, 12) - 12, y + h - 18, 12, accent);
 }
