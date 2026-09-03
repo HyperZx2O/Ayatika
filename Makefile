@@ -25,30 +25,30 @@ run: $(TARGET)
 # UI, screensaver, cat, and the full integration harness). Each prints
 # PASS/FAIL per check and exits non-zero if any check fails.
 test: test_audio test_search test_search_ui test_screensaver test_cat test_systems
-	./test_search
-	./test_audio
-	./test_search_ui
-	./test_screensaver
-	./test_cat
-	./test_systems --auto
+	./tests/test_search
+	./tests/test_audio
+	./tests/test_search_ui
+	./tests/test_screensaver
+	./tests/test_cat
+	./tests/test_systems --auto
 
-test_audio: test_audio.c src/audio.c src/mock_data.c
-	$(CC) $(CFLAGS) src/audio.c src/mock_data.c test_audio.c $(LIBS) -o test_audio
+test_audio: tests/test_audio.c src/audio.c src/mock_data.c
+	$(CC) $(CFLAGS) src/audio.c src/mock_data.c tests/test_audio.c $(LIBS) -o tests/test_audio
 
-test_search: test_search.c src/search.c src/mock_data.c
-	$(CC) $(CFLAGS) src/search.c src/mock_data.c test_search.c $(LIBS) -o test_search
+test_search: tests/test_search.c src/search.c src/mock_data.c
+	$(CC) $(CFLAGS) src/search.c src/mock_data.c tests/test_search.c $(LIBS) -o tests/test_search
 
-test_search_ui: test_search_ui.c src/search.c src/mock_data.c
-	$(CC) $(CFLAGS) src/search.c src/mock_data.c test_search_ui.c $(LIBS) -o test_search_ui
+test_search_ui: tests/test_search_ui.c src/search.c src/mock_data.c
+	$(CC) $(CFLAGS) src/search.c src/mock_data.c tests/test_search_ui.c $(LIBS) -o tests/test_search_ui
 
-test_screensaver: test_screensaver.c src/audio.c src/screensaver.c src/mock_data.c
-	$(CC) $(CFLAGS) src/audio.c src/screensaver.c src/mock_data.c test_screensaver.c $(LIBS) -o test_screensaver
+test_screensaver: tests/test_screensaver.c src/audio.c src/screensaver.c src/mock_data.c
+	$(CC) $(CFLAGS) src/audio.c src/screensaver.c src/mock_data.c tests/test_screensaver.c $(LIBS) -o tests/test_screensaver
 
-test_cat: test_cat.c src/audio.c src/screensaver.c src/mock_data.c
-	$(CC) $(CFLAGS) src/audio.c src/screensaver.c src/mock_data.c test_cat.c $(LIBS) -o test_cat
+test_cat: tests/test_cat.c src/audio.c src/screensaver.c src/mock_data.c
+	$(CC) $(CFLAGS) src/audio.c src/screensaver.c src/mock_data.c tests/test_cat.c $(LIBS) -o tests/test_cat
 
-test_systems: test_systems.c src/audio.c src/screensaver.c src/search.c src/mock_data.c
-	$(CC) $(CFLAGS) src/audio.c src/screensaver.c src/search.c src/mock_data.c test_systems.c $(LIBS) -o test_systems
+test_systems: tests/test_systems.c src/audio.c src/screensaver.c src/search.c src/mock_data.c
+	$(CC) $(CFLAGS) src/audio.c src/screensaver.c src/search.c src/mock_data.c tests/test_systems.c $(LIBS) -o tests/test_systems
 
 clean:
-	rm -f $(TARGET) test_audio test_search test_search_ui test_screensaver test_cat test_systems
+	rm -f $(TARGET) tests/test_audio tests/test_search tests/test_search_ui tests/test_screensaver tests/test_cat tests/test_systems

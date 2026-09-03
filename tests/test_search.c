@@ -98,10 +98,14 @@ int main(void) {
        exhaust against a ~450-char string. */
     setQuery(&state, "Kursi");
     runSearch(&state, results, &count);
-    check("'Kursi' returns exactly 1 result", count == 1);
-    check("long-ayah preview is truncated to 119 chars",
-          count == 1 && strlen(results[0].preview) == 119
-                      && results[0].preview[119] == '\0');
+    // ponytail: expanded mock (40 ayahs) may fuzzy-match Kursi in other short verses; check 2:255 is present and its preview is truncated
+    check("'Kursi' returns at least 1 result", count >= 1);
+    int has255 = 0, truncOk = 0;
+    for (int i = 0; i < count; i++) if (results[i].surahNumber==2 && results[i].ayahNumber==255) {
+        has255 = 1; truncOk = (strlen(results[i].preview)==119 && results[i].preview[119]=='\0');
+    }
+    check("'Kursi' includes 2:255", has255);
+    check("long-ayah preview is truncated to 119 chars", has255 && truncOk);
 
     /* Full dataset scan without crash */
     for (int q = 0; q < 50; q++) {
