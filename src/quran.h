@@ -170,6 +170,7 @@ char *formatCountdown(float targetTime);
 
 /* db.c */
 int   initDatabase(void);
+void  closeDatabase(void);
 int   saveBookmark(Bookmark *bm);
 int   loadBookmarks(Bookmark *out, int maxCount);
 int   deleteBookmark(int id);

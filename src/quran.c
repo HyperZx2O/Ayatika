@@ -4,6 +4,10 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <errno.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 #include <curl/curl.h>
 /* quran.h includes <raylib.h>, whose function names (CloseWindow, ShowCursor,
    DrawText, LoadImage, PlaySound) collide with Windows API macros/functions
@@ -231,21 +235,38 @@ static int mergeTranslation(AppState *state, const char *filepath, const char *l
 }
 
 static void ensureDataDir(void) {
-    mkdir("data");
+    // ponytail: swallow EEXIST only, stdlib mkdir — no wrapper lib
+#ifdef _WIN32
+    if (_mkdir("data") != 0 && errno != EEXIST) {}
+#else
+    if (mkdir("data", 0755) != 0 && errno != EEXIST) {}
+#endif
+}
+
+static void setOfflineMsg(AppState *state) {
+    snprintf(state->statusMsg, sizeof(state->statusMsg),
+             "Offline mode — connect to fetch full data");
 }
 
 int loadQuranData(AppState *state) {
     ensureDataDir();
+    state->statusMsg[0] = '\0';
 
     if (access("data/quran.json", F_OK) != 0) {
         printf("First run: fetching Quran data...\n");
         if (!fetchAndSave(
                 "https://api.alquran.cloud/v1/quran/quran-uthmani",
-                "data/quran.json"))
+                "data/quran.json")) {
+            setOfflineMsg(state);
             return 0;
+        }
     }
 
-    if (!parseQuranJSON(state, "data/quran.json")) return 0;
+    if (!parseQuranJSON(state, "data/quran.json")) {
+        // ponytail: corrupted/null JSON → offline msg, caller can retry after re-fetch
+        setOfflineMsg(state);
+        return 0;
+    }
 
     if (access("data/translation_en.json", F_OK) != 0) {
         printf("Fetching English translation...\n");
@@ -267,6 +288,7 @@ int loadQuranData(AppState *state) {
 }
 
 Ayah *getAyah(AppState *state, int surahNum, int ayahNum) {
+    if (!state || !state->ayahs) return NULL;
     for (int i = 0; i < state->totalAyahs; i++) {
         if (state->ayahs[i].surahNumber == surahNum &&
             state->ayahs[i].ayahNumber  == ayahNum)
@@ -276,6 +298,7 @@ Ayah *getAyah(AppState *state, int surahNum, int ayahNum) {
 }
 
 int getAyahIndex(AppState *state, int surahNum, int ayahNum) {
+    if (!state || !state->ayahs) return -1;
     for (int i = 0; i < state->totalAyahs; i++) {
         if (state->ayahs[i].surahNumber == surahNum &&
             state->ayahs[i].ayahNumber  == ayahNum)

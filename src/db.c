@@ -14,6 +14,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
+#include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
+#include <unistd.h>
 #include <sqlite3.h>
 /* quran.h includes <raylib.h>, which is not available when this module
    is compiled in isolation. No struct here uses raylib types, so we
@@ -23,8 +29,18 @@
 
 static sqlite3 *db = NULL;
 
+static void ensureDataDir(void) {
+    // ponytail: swallow EEXIST only, stdlib mkdir — no extra util lib
+#ifdef _WIN32
+    if (_mkdir("data") != 0 && errno != EEXIST) {}
+#else
+    if (mkdir("data", 0755) != 0 && errno != EEXIST) {}
+#endif
+}
+
 int initDatabase(void) {
     if (db) return 1;
+    ensureDataDir();
     if (sqlite3_open("data/almaktaba.db", &db) != SQLITE_OK) return 0;
 
     const char *sql =
@@ -36,7 +52,17 @@ int initDatabase(void) {
         "  note      TEXT    DEFAULT '',"
         "  timestamp INTEGER NOT NULL"
         ");";
-    if (sqlite3_exec(db, sql, NULL, NULL, NULL) != SQLITE_OK) return 0;
+    if (sqlite3_exec(db, sql, NULL, NULL, NULL) == SQLITE_OK) return 1;
+    // ponytail: corrupted DB — one retry: close+delete+reopen, else give up
+    sqlite3_close(db);
+    db = NULL;
+    unlink("data/almaktaba.db");
+    if (sqlite3_open("data/almaktaba.db", &db) != SQLITE_OK) return 0;
+    if (sqlite3_exec(db, sql, NULL, NULL, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        db = NULL;
+        return 0;
+    }
     return 1;
 }
 
@@ -117,4 +143,8 @@ int bookmarkExists(int surahNum, int ayahNum) {
         exists = sqlite3_column_int(stmt, 0) > 0;
     sqlite3_finalize(stmt);
     return exists;
+}
+
+void closeDatabase(void) {
+    if (db) { sqlite3_close(db); db = NULL; }
 }
