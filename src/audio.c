@@ -13,34 +13,117 @@
 #include <raylib.h>
 #include "audio.h"
 
-/* TODO: static Sound/Music handles + loaded flags */
+static Sound clickSound;
+static Sound surahSwitchSound;
+static Sound azanSound;
+static Music natureMusic;
+static Music recitationStream;
+
+static int clickLoaded       = 0;
+static int surahSwitchLoaded = 0;
+static int azanLoaded        = 0;
+static int natureLoaded      = 0;
+static int recitationActive  = 0;
 
 void initAudio(void) {
     InitAudioDevice();
-    /* TODO: load azan.mp3, click.wav, surah_switch.wav, nature.ogg */
+
+    if (FileExists("assets/click.wav")) {
+        clickSound  = LoadSound("assets/click.wav");
+        clickLoaded = 1;
+    }
+    if (FileExists("assets/surah_switch.wav")) {
+        surahSwitchSound  = LoadSound("assets/surah_switch.wav");
+        surahSwitchLoaded = 1;
+    }
+    if (FileExists("assets/azan.mp3")) {
+        azanSound  = LoadSound("assets/azan.mp3");
+        azanLoaded = 1;
+    }
+    if (FileExists("assets/nature.ogg")) {
+        natureMusic  = LoadMusicStream("assets/nature.ogg");
+        natureLoaded = 1;
+        SetMusicVolume(natureMusic, 0.25f);
+        natureMusic.looping = 1;
+    }
 }
 
 void updateAudio(AppState *state) {
-    (void)state;
-    /* TODO: UpdateMusicStream for nature + recitation streams */
+    if (natureLoaded && state->isNatureSoundOn)
+        UpdateMusicStream(natureMusic);
+    if (recitationActive)
+        UpdateMusicStream(recitationStream);
 }
 
 void closeAudio(void) {
-    /* TODO: unload all sounds/music */
+    if (clickLoaded)       UnloadSound(clickSound);
+    if (surahSwitchLoaded) UnloadSound(surahSwitchSound);
+    if (azanLoaded)        UnloadSound(azanSound);
+    if (natureLoaded)      UnloadMusicStream(natureMusic);
+    if (recitationActive)  UnloadMusicStream(recitationStream);
     CloseAudioDevice();
 }
 
-void playAzan(void)               { /* TODO */ }
-void stopAzan(void)                { /* TODO */ }
-int  isAzanPlaying(void)           { /* TODO */ return 0; }
+void playAzan(void) {
+    if (azanLoaded && !IsSoundPlaying(azanSound))
+        PlaySound(azanSound);
+}
 
-void playRecitation(const char *audioUrl) { (void)audioUrl; /* TODO */ }
-void stopRecitation(void)                  { /* TODO */ }
-int  isRecitationPlaying(void)             { /* TODO */ return 0; }
+void stopAzan(void) {
+    if (azanLoaded) StopSound(azanSound);
+}
 
-void startNatureSound(void)                { /* TODO */ }
-void stopNatureSound(void)                 { /* TODO */ }
-void toggleNatureSound(AppState *state)    { (void)state; /* TODO */ }
+int isAzanPlaying(void) {
+    return azanLoaded && IsSoundPlaying(azanSound);
+}
 
-void playClickSfx(void)            { /* TODO */ }
-void playSurahSwitchSfx(void)      { /* TODO */ }
+void playRecitation(const char *filePath) {
+    if (!filePath || filePath[0] == '\0') return;
+    if (recitationActive) {
+        StopMusicStream(recitationStream);
+        UnloadMusicStream(recitationStream);
+        recitationActive = 0;
+    }
+    if (!FileExists(filePath)) return;
+    recitationStream = LoadMusicStream(filePath);
+    if (recitationStream.frameCount > 0) {
+        recitationStream.looping = 0;
+        PlayMusicStream(recitationStream);
+        recitationActive = 1;
+    }
+}
+
+void stopRecitation(void) {
+    if (recitationActive) {
+        StopMusicStream(recitationStream);
+        UnloadMusicStream(recitationStream);
+        recitationActive = 0;
+    }
+}
+
+int isRecitationPlaying(void) {
+    return recitationActive;
+}
+
+void startNatureSound(void) {
+    if (natureLoaded && !IsMusicStreamPlaying(natureMusic))
+        PlayMusicStream(natureMusic);
+}
+
+void stopNatureSound(void) {
+    if (natureLoaded) StopMusicStream(natureMusic);
+}
+
+void toggleNatureSound(AppState *state) {
+    state->isNatureSoundOn = !state->isNatureSoundOn;
+    if (state->isNatureSoundOn) startNatureSound();
+    else                        stopNatureSound();
+}
+
+void playClickSfx(void) {
+    if (clickLoaded) PlaySound(clickSound);
+}
+
+void playSurahSwitchSfx(void) {
+    if (surahSwitchLoaded) PlaySound(surahSwitchSound);
+}
