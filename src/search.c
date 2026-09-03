@@ -159,6 +159,10 @@ void drawSearch(AppState *state, SearchResult *results, int resultCount) {
     if (resultCount > 0 && selectedResult >= resultCount)
         selectedResult = resultCount - 1;
 
+    // ponytail: minimal j/k + Enter wiring — reuses seams so headless tests cover it
+    if (IsKeyPressed(KEY_J)) selectedResult = searchMoveSelection(selectedResult, resultCount - 1, 1);
+    if (IsKeyPressed(KEY_K)) selectedResult = searchMoveSelection(selectedResult, resultCount - 1, -1);
+
     /* Results */
     if (strlen(state->searchQuery) < 2) {
         DrawText("Type at least 2 characters to search...",
@@ -189,7 +193,12 @@ void drawSearch(AppState *state, SearchResult *results, int resultCount) {
                  results[i].surahNumber, results[i].ayahNumber);
         DrawText(ref, 56, y + 4, 14, (Color){180, 140, 60, 255});
 
-        DrawText(results[i].preview, 110, y + 4, 14,
+        // ponytail: 75-char ellipsis keeps rows from overflowing
+        char preview[80];
+        strncpy(preview, results[i].preview, 75);
+        preview[75] = '\0';
+        if (strlen(results[i].preview) > 75) strcat(preview, "...");
+        DrawText(preview, 110, y + 4, 14,
                  isActive ? (Color){220, 210, 185, 255}
                           : (Color){120, 110, 90, 255});
     }
