@@ -1,8 +1,8 @@
+/* deterministic harness fixture; the app loads live API data. */
 #include <string.h>
-#include <stdlib.h>
-#include "mock_data.h"
+#include "test_data.h"
 
-static Surah mockSurahs[] = {
+static Surah tSurahs[] = {
     {1,  "Al-Fatiha", "الفاتحة", "The Opening", "Meccan", 7,
      "The first Surah revealed in full, known as the Mother of the Quran."},
     {2,  "Al-Baqarah", "البقرة", "The Cow", "Medinan", 286,
@@ -17,7 +17,7 @@ static Surah mockSurahs[] = {
      "A prayer seeking refuge in Allah from the whisperings of Shaytan."}
 };
 
-static Ayah mockAyahs[] = {
+static Ayah tAyahs[] = {
     {1, 1, "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "In the name of Allah, the Most Gracious, the Most Merciful.", "", ""},
     {1, 2, "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ", "All praise and thanks are for Allah, the Lord of all worlds.", "", ""},
     {1, 3, "الرَّحْمَٰنِ الرَّحِيمِ", "The Most Gracious, the Most Merciful.", "", ""},
@@ -38,7 +38,6 @@ static Ayah mockAyahs[] = {
     {2, 238, "", "Guard strictly the prayers, especially the middle prayer, and stand before Allah, devoutly obedient.", "", ""},
     {2, 255, "", "Allah - there is no deity except Him, the Ever-Living, the Self-Sustaining. Neither drowsiness overtakes Him nor sleep. To Him belongs whatever is in the heavens and whatever is on the earth. Who is it that can intercede with Him except by His permission? He knows what is before them and what will be after them, and they encompass nothing of His knowledge except what He wills. His Kursi extends over the heavens and the earth, and their preservation tires Him not. And He is the Most High, the Most Great.", "", ""},
     {2, 257, "", "Allah is the ally of those who believe; He brings them out from darknesses into the light.", "", ""},
-    // ponytail: 20 extra mock ayahs for variety; avoid mercy/prayer/light/Kursi keywords to keep seeded search pins stable
     {2, 286, "", "The Messenger has believed in what was revealed to him from his Lord, and so have the believers.", "", ""},
     {3, 190, "", "Indeed, in the creation of the heavens and the earth are signs for those of understanding.", "", ""},
     {3, 159, "", "So by mercy from Allah, you were lenient with them; and if you had been harsh, they would have dispersed.", "", ""},
@@ -61,39 +60,18 @@ static Ayah mockAyahs[] = {
     {13, 28, "", "Those who have believed and whose hearts are assured by the remembrance of Allah.", "", ""},
 };
 
-static Hadith mockHadiths[] = {
-    {"Hadith 1", "Actions are judged by intentions, and every person will get the reward according to what he has intended.",
-     "Umar ibn Al-Khattab", "Bukhari"},
-    {"Hadith 2", "The best among you are those who have the best manners and character.",
-     "Abdullah ibn Amr", "Bukhari"},
-    {"Hadith 3", "None of you will have faith till he wishes for his brother what he likes for himself.",
-     "Anas ibn Malik", "Bukhari"},
-    {"Hadith 4", "Make things easy, not difficult, and give glad tidings and do not drive people away.",
-     "Anas ibn Malik", "Bukhari"},
-    {"Hadith 5", "The strong person is not the one who can wrestle well but the one who controls himself when angry.",
-     "Abu Hurairah", "Bukhari"},
-    {"Hadith 6", "A good word is charity. Every step taken towards prayer is charity.",
-     "Abu Hurairah", "Bukhari"},
-    {"Hadith 7", "Smiling at your brother is charity, enjoining good is charity, and forbidding evil is charity.",
-     "Abu Dharr", "Bukhari"},
-    {"Hadith 8", "The most beloved deed to Allah is the most regular and constant even if it were little.",
-     "Aisha", "Bukhari"},
-    {"Hadith 9", "Seek knowledge from the cradle to the grave.",
-     "Anas ibn Malik", "Muslim"},
-    {"Hadith 10", "The best of you are those who learn the Quran and teach it.",
-     "Uthman ibn Affan", "Bukhari"},
-    {"Hadith 11", "Cleanliness is half of faith.",
-     "Abu Malik al-Ashari", "Muslim"},
-    {"Hadith 12", "Do not look down upon any good deed, even meeting your brother with a cheerful face.",
-     "Abu Dharr", "Muslim"},
+static Hadith tHadiths[] = {
+    {"Hadith 1", "Actions are judged by intentions.", "Umar ibn Al-Khattab", "Bukhari"},
+    {"Hadith 2", "The best among you have the best manners.", "Abdullah ibn Amr", "Bukhari"},
 };
 
-void loadMockData(AppState *state) {
-    state->surahs = mockSurahs;
-    state->ayahs = mockAyahs;
-    state->totalAyahs = sizeof(mockAyahs) / sizeof(mockAyahs[0]);
-    state->hadiths = mockHadiths;
-    state->totalHadiths = sizeof(mockHadiths) / sizeof(mockHadiths[0]);
+void loadTestData(AppState *state) {
+    state->surahs = tSurahs;
+    state->surahCount = sizeof(tSurahs) / sizeof(tSurahs[0]);
+    state->ayahs = tAyahs;
+    state->totalAyahs = sizeof(tAyahs) / sizeof(tAyahs[0]);
+    state->hadiths = tHadiths;
+    state->totalHadiths = sizeof(tHadiths) / sizeof(tHadiths[0]);
 
     state->currentSurah = 1;
     state->currentAyah = 1;
@@ -125,3 +103,4 @@ void loadMockData(AppState *state) {
 
     strncpy(state->language, "en", 7);
 }
+

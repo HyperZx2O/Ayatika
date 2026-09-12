@@ -20,6 +20,14 @@ void playAzan(void);                  /* play the azan clip once; no-op if it is
 void stopAzan(void);                  /* stop the azan immediately */
 int  isAzanPlaying(void);             /* 1 while the azan is playing */
 
+/* Reminder (5 min before waqt) */
+void playReminder(void);              /* play the reminder clip once; no-op if already playing */
+void stopReminder(void);              /* stop the reminder immediately */
+int  isReminderPlaying(void);         /* 1 while the reminder is playing */
+
+/* Waqt alerts — reminder at T-5min, azan at T-0; call every frame via updateAudio */
+void checkPrayerAlerts(AppState *state);
+
 /* Recitation
  * filePath is a LOCAL file path, not a CDN URL — raylib's
  * LoadMusicStream only reads local files. The Backend downloads

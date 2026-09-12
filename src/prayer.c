@@ -11,11 +11,8 @@
  * See member1.md for the full implementation plan.
  * ============================================================ */
 
-/* quran.h includes <raylib.h>; we never use raylib types here, so
-   short-circuit its include guard to let this file compile standalone
-   (same pattern as quran.c). */
-#define RAYLIB_H
-#include "prayer.h"
+/* quran.h is raylib-free, no include-guard hack needed. */
+#include "quran.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -91,7 +88,7 @@ static double sunAngleTime(double angle, double jd, double lat, int ccw) {
 static double asrTime(double jd, double lat) {
     double decl;
     sunPosition(jd, &decl, NULL);
-    /* ponytail: Hanafi factor 2, Bangladesh's official standard (Shafi would be 1) */
+    /* Hanafi factor 2, Bangladesh's official standard (Shafi would be 1) */
     double angle = -ARCCOT(2.0 + TAN(fabs(lat - decl)));
     return sunAngleTime(angle, jd, lat, 0);
 }
@@ -113,6 +110,11 @@ static float currentHour(void) {
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
     return t->tm_hour + t->tm_min / 60.0f + t->tm_sec / 3600.0f;
+}
+
+/* non-static wrapper so audio.c alert math can read the clock. */
+float prayerNowHours(void) {
+    return currentHour();
 }
 
 static void floatToTimeStr(float h, char *out) {
@@ -172,7 +174,7 @@ void updatePrayerTimes(AppState *state) {
     maghrib += adj; isha += adj;
 
     /* NightMiddle adjustment for high latitudes (prevents NaN). */
-    double night = timeDiff(maghrib, sunrise); /* ponytail: NightMiddle only */
+    double night = timeDiff(maghrib, sunrise); /* NightMiddle only */
     if (isnan(fajr) || timeDiff(fajr, sunrise) > night * 0.5)
         fajr = sunrise - night * 0.5;
     if (isnan(isha) || timeDiff(maghrib, isha) > night * 0.5)
@@ -236,6 +238,16 @@ float getNextPrayerTime(PrayerTimes *pt) {
     return pt->fajr + 24.0f;
 }
 
+/* index twin of getNextPrayerName/Time — keys the once-per-waqt fire. */
+int nextPrayerIndex(PrayerTimes *pt) {
+    if (!pt) return 0;
+    float cur = currentHour();
+    float times[5] = { pt->fajr, pt->dhuhr, pt->asr, pt->maghrib, pt->isha };
+    for (int i = 0; i < 5; i++)
+        if (times[i] > cur) return i;
+    return 0; /* wrapped to tomorrow's Fajr */
+}
+
 char *formatCountdown(float targetTime) {
     static char buf[32];
     float diff = targetTime - currentHour();
@@ -246,3 +258,4 @@ char *formatCountdown(float targetTime) {
     snprintf(buf, sizeof(buf), "%dh %02dm", h, m);
     return buf;
 }
+

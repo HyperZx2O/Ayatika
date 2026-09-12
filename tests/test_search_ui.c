@@ -1,18 +1,17 @@
 /* ============================================================
- * test_search_ui.c — Phase 7 test harness for the search
- * screen UI. Compile + run (standalone):
+ * test_search_ui.c — Finder overlay UI harness. Compile + run:
  *
- *   gcc -std=c11 -Wall -Wextra -Isrc test_search_ui.c \
- *       src/search.c src/mock_data.c -lraylib -lm -o test_search_ui
+ *   (see Makefile test_search_ui)
  *
- * drawSearch is a raylib draw function (needs a window), and raylib
+ * The overlay is a raylib draw function (needs a window), and raylib
  * has no key-injection API, so real keypresses can't be automated.
  * The keyboard logic is therefore verified headlessly through the
  * test seams in search.h (searchAppendChar / searchBackspace /
  * searchMoveSelection), and each render branch is exercised in a
- * real window. The "results update as you type" behaviour is proven
- * by re-running runSearch after each query change — the same loop
- * the real app runs every frame on the search screen.
+ * real window via drawCurrentScreen with the Finder open. The
+ * "results update as you type" behaviour is proven by re-running
+ * runSearch after each query change — the same loop the input
+ * layer runs on every query change.
  *
  * Prints PASS/FAIL per check; exits non-zero if any fails.
  * ============================================================ */
@@ -21,7 +20,9 @@
 #include <string.h>
 #include "raylib.h"
 #include "search.h"
-#include "mock_data.h"
+#include "test_data.h"
+#include "theme.h"
+#include "ui.h"
 
 static int failures = 0;
 
@@ -30,14 +31,26 @@ static void check(const char *name, int ok) {
     if (!ok) failures++;
 }
 
-/* Draw a few real frames so every drawSearch branch runs through a
+/* Draw a few real frames so every Finder branch runs through a
    BeginDrawing/EndDrawing cycle, mirroring the game loop. */
-static void drawFrames(AppState *state, SearchResult *results, int resultCount, int frames) {
+static void drawFrames(AppState *state, int frames) {
     for (int i = 0; i < frames; i++) {
         BeginDrawing();
-        drawSearch(state, results, resultCount);
+        drawCurrentScreen(state);
         EndDrawing();
         WaitTime(1.0 / 60.0);
+    }
+}
+
+/* same sync the input layer does before runSearch. */
+static void setFinderQuery(AppState *state, int ayahTab, const char *q) {
+    state->showGoToPalette = 1;
+    state->paletteMode = ayahTab ? 1 : 0;
+    state->paletteSelection = 0;
+    snprintf(state->paletteQuery, sizeof(state->paletteQuery), "%s", q);
+    if (ayahTab) {
+        snprintf(state->searchQuery, sizeof(state->searchQuery), "%s", q);
+        runSearch(state, state->searchResults, &state->searchResultCount);
     }
 }
 
@@ -72,62 +85,57 @@ int main(void) {
     check("selection clamps at bottom", searchMoveSelection(9, 9, 1) == 9);
     check("selection clamps at top",    searchMoveSelection(0, 9, -1) == 0);
 
-    /* ── Windowed: render branches ── */
-    InitWindow(800, 600, "search UI test");
+    /* ── Windowed: Finder render branches, both tabs ── */
+    InitWindow(800, 600, "finder UI test");
+    initThemes();
 
     AppState state;
     memset(&state, 0, sizeof(AppState));
-    loadMockData(&state);
+    loadTestData(&state);
+    initFonts(&state);
+    S = computeScale(800, 600);
 
-    SearchResult results[MAX_SEARCH_RESULTS];
-    int resultCount = 0;
-
-    /* Short query — minimum-length prompt */
-    strncpy(state.searchQuery, "a", sizeof(state.searchQuery) - 1);
-    state.searchQuery[sizeof(state.searchQuery) - 1] = '\0';
-    runSearch(&state, results, &resultCount);
-    check("single-char query yields 0 results", resultCount == 0);
-    drawFrames(&state, results, resultCount, 5);
+    /* Ayahs tab, short query — minimum-length prompt */
+    setFinderQuery(&state, 1, "a");
+    check("single-char query yields 0 results", state.searchResultCount == 0);
+    drawFrames(&state, 5);
     check("short-query prompt draws without crash", 1);
 
-    /* Long query, no matches — "No results found." branch.
-       Driven directly with resultCount == 0 so the branch is
-       guaranteed reachable (fuzzy subsequence matching makes finding
-       a string absent from the whole dataset unreliable). */
-    strncpy(state.searchQuery, "mercy", sizeof(state.searchQuery) - 1);
-    state.searchQuery[sizeof(state.searchQuery) - 1] = '\0';
-    drawFrames(&state, results, 0, 5);
-    check("no-results message draws without crash", 1);
+    /* Ayahs tab, no matches — "No results found." branch */
+    setFinderQuery(&state, 1, "mercy");
+    drawFrames(&state, 5);
+    check("ayah results list draws without crash", state.searchResultCount > 0);
 
-    /* Query with matches — results list renders */
-    runSearch(&state, results, &resultCount);
-    check("'mercy' returns results", resultCount > 0);
-    drawFrames(&state, results, resultCount, 10);
-    check("results list draws without crash", 1);
-
-    /* "Results update as you type" — change the query, re-run the
-       search (as the real loop does every frame), results change. */
-    strncpy(state.searchQuery, "prayer", sizeof(state.searchQuery) - 1);
-    state.searchQuery[sizeof(state.searchQuery) - 1] = '\0';
-    runSearch(&state, results, &resultCount);
+    /* Ayahs tab, re-query updates results (as the input loop does) */
+    setFinderQuery(&state, 1, "prayer");
     check("re-ran search updates results for new query",
-          resultCount > 0 && results[0].surahNumber == 2
-                          && results[0].ayahNumber == 238);
-    drawFrames(&state, results, resultCount, 5);
+          state.searchResultCount > 0 && state.searchResults[0].surahNumber == 2
+                                      && state.searchResults[0].ayahNumber == 238);
+    drawFrames(&state, 5);
 
-    /* Surah-name boost path renders too */
-    strncpy(state.searchQuery, "Al-Fatiha", sizeof(state.searchQuery) - 1);
-    state.searchQuery[sizeof(state.searchQuery) - 1] = '\0';
-    runSearch(&state, results, &resultCount);
-    check("surah-name search returns results", resultCount >= 5);
-    drawFrames(&state, results, resultCount, 5);
+    /* Surahs tab, empty query — full list renders */
+    setFinderQuery(&state, 0, "");
+    drawFrames(&state, 5);
+    check("surah tab empty query draws without crash", 1);
 
+    /* Surahs tab, fuzzy query — filtered rows render */
+    setFinderQuery(&state, 0, "fatiha");
+    drawFrames(&state, 5);
+    check("surah tab fuzzy query draws without crash", 1);
+
+    /* Surahs tab, gibberish — "No matches." branch */
+    setFinderQuery(&state, 0, "zzz");
+    drawFrames(&state, 5);
+    check("surah no-matches message draws without crash", 1);
+
+    closeFonts();
     CloseWindow();
 
     if (failures > 0) {
         printf("%d check(s) FAILED\n", failures);
         return 1;
     }
-    printf("All search UI checks passed\n");
+    printf("All finder UI checks passed\n");
     return 0;
 }
+

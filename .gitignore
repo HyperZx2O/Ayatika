@@ -2,6 +2,7 @@
 ayatika
 tests/test_phase[0-9]*
 *.o
+*.res
 *.out
 *.exe
 *.dll
@@ -13,14 +14,16 @@ diagnostic_dump.txt
 diag_*.txt
 tests/diag_*.txt
 
-# Throwaway test drivers (not committed long-term)
+# Throwaway drivers at repo root only (tests/*.c are real harnesses)
 test_*.c
+!tests/test_*.c
 
 # Runtime-generated data (not committed — created on first run)
 data/quran.json
 data/translation_en.json
 data/translation_bn.json
 data/hadiths.json
+data/hadith_*.json
 data/almaktaba.db
 data/*.db
 data/config.ini
@@ -44,6 +47,5 @@ build/
 *.dSYM/
 
 # Project planning / agent instructions
-context/
 AGENTS.md
 .mimocode/

@@ -3,7 +3,7 @@
  * Compile + run (standalone, does not need the full app build):
  *
  *   gcc -std=c11 -Wall -Wextra -Isrc test_audio.c src/audio.c \
- *       src/mock_data.c -lraylib -lm -o test_audio
+ *       tests/test_data.c -lraylib -lm -o test_audio
  *
  * Run from the repo root (assets/ must be reachable) to verify
  * SFX + nature-sound playback, Azan, and recitation. Run from a
@@ -17,7 +17,7 @@
 #include <string.h>
 #include "raylib.h"
 #include "audio.h"
-#include "mock_data.h"
+#include "test_data.h"
 
 static int failures = 0;
 
@@ -31,7 +31,7 @@ int main(void) {
 
     AppState state;
     memset(&state, 0, sizeof(AppState));
-    loadMockData(&state);
+    loadTestData(&state);
 
     initAudio();
     playClickSfx();

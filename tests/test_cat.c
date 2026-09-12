@@ -4,7 +4,7 @@
  * the full app build):
  *
  *   gcc -std=c11 -Wall -Wextra -Isrc test_cat.c \
- *       src/screensaver.c src/audio.c src/mock_data.c \
+ *       src/screensaver.c src/audio.c tests/test_data.c \
  *       -lraylib -lm -o test_cat
  *
  * Run from the repo root (assets/cat.png reachable) to verify
@@ -25,7 +25,7 @@
 #include "raylib.h"
 #include "audio.h"
 #include "screensaver.h"
-#include "mock_data.h"
+#include "test_data.h"
 
 #define EXPECTED_FRAMES 6   /* must match CAT_FRAME_COUNT in screensaver.c */
 
@@ -41,7 +41,7 @@ int main(void) {
 
     AppState state;
     memset(&state, 0, sizeof(AppState));
-    loadMockData(&state);
+    loadTestData(&state);
 
     int haveCat = FileExists("assets/cat.png");
 

@@ -1,41 +1,27 @@
 #include <raylib.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Minimal Windows API declarations for dynamic loading of DwmSetWindowAttribute.
- * We avoid #include <windows.h> because it conflicts with raylib types. */
-typedef void *HMODULE;
-typedef unsigned long DWORD;
-__declspec(dllimport) HMODULE __stdcall LoadLibraryA(const char *);
-__declspec(dllimport) void*   __stdcall GetProcAddress(HMODULE, const char *);
-__declspec(dllimport) int     __stdcall FreeLibrary(HMODULE);
-
-#include "mock_data.h"
+#include "quran.h"
 #include "ui.h"
 #include "theme.h"
 #include "input.h"
-
-/* ── Apply dark/light title bar to match current theme ──
- * Uses LoadLibrary/GetProcAddress to avoid linking against dwmapi.lib.
- * dwmapi.dll is always present on modern Windows, so this is safe. */
-void applyTitleBarTheme(Theme *theme) {
-    float lum = 0.299f * theme->background.r +
-                0.587f * theme->background.g +
-                0.114f * theme->background.b;
-    int dark = (lum < 128.0f) ? 1 : 0;
-    HMODULE hDwm = LoadLibraryA("dwmapi.dll");
-    if (hDwm) {
-        /* DwmSetWindowAttribute(HWND, DWORD, LPCVOID, DWORD) */
-        typedef int (__stdcall *DwmFn)(void*, DWORD, const void*, DWORD);
-        DwmFn fn = (DwmFn)(void*)GetProcAddress(hDwm, "DwmSetWindowAttribute");
-        if (fn) fn(GetWindowHandle(), 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark, sizeof(dark));
-        FreeLibrary(hDwm);
-    }
-}
+#include "audio.h"
+#include "screensaver.h"
 
 int main(void) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(1280, 720, "Ayatika — القرآن الكريم");
+    /* Window/taskbar icon (Explorer uses the embedded .ico instead). */
+    Image appIcon = LoadImage("assets/icon.png");
+    if (appIcon.data) {
+        SetWindowIcon(appIcon);
+        UnloadImage(appIcon);
+    }
+    /* content-driven minimum — below 960×600 the sidebar + content stop coexisting. */
+    SetWindowMinSize(960, 600);
+    MaximizeWindow(); /* fill the screen on launch, still resizable. */
     applyTitleBarTheme(getTheme(0));
     SetTargetFPS(60);
     SetExitKey(0);
@@ -44,13 +30,31 @@ int main(void) {
     memset(&state, 0, sizeof(AppState));
     state.currentScreen = SCREEN_DASHBOARD;
     state.currentTheme  = 0;
+    /* sane runtime defaults; loadConfig overrides persisted ones. */
+    state.vimMotions = 0;
+    state.fontScale = 1.0f;
+    state.idleSeconds = 300;
+    state.autoResume = 1;
     state.lastInputTime = GetTime();
-    strncpy(state.language, "en", 7);
 
-    loadMockData(&state);
+    loadConfig(&state);
+    if (state.fontScale < 0.01f) state.fontScale = 1.0f;
+    if (state.idleSeconds <= 0) state.idleSeconds = 300;
+    initDatabase();
+    if (!loadQuranData(&state)) {
+        /* offline first-run still opens; screens guard NULL data. */
+        setStatus(&state, 1, "Offline mode — connect to fetch full data");
+    }
+    loadHadiths(&state);
+    if (!state.autoResume) { state.currentSurah = 1; state.currentAyah = 1; }
+    if (state.currentSurah < 1) state.currentSurah = 1;
+    if (state.currentAyah < 1) state.currentAyah = 1;
     initThemes();
     initFonts(&state);
     initFocusTexture();
+    initAudio();
+    initScreensaver();
+    updatePrayerTimes(&state);
 
     while (!WindowShouldClose()) {
         S = computeScale(GetScreenWidth(), GetScreenHeight());
@@ -61,18 +65,35 @@ int main(void) {
 
         double idleSeconds = GetTime() - state.lastInputTime;
         state.catVisible = (idleSeconds > (double)state.idleSeconds);
+        /* single idle gate; 0 disables. */
+        if (state.idleSeconds > 0 && idleSeconds > (double)state.idleSeconds &&
+            state.currentScreen != SCREEN_SCREENSAVER) {
+            state.previousScreen = state.currentScreen;
+            state.currentScreen = SCREEN_SCREENSAVER;
+        }
 
+        updatePrayerTimes(&state);
+        updateAudio(&state);
         handleInput(&state);
 
         BeginDrawing();
             ClearBackground(getTheme(state.currentTheme)->background);
             drawCurrentScreen(&state);
             if (state.showHelp) drawHelpOverlay(&state);
+            drawBookmarkPopup(&state);
         EndDrawing();
     }
 
+    saveConfig(&state);
+    closeDatabase();
+    freeHadiths(&state);
+    free(state.surahs);
+    free(state.ayahs);
+    closeAudio();
+    closeScreensaver();
     closeFocusTexture();
     closeFonts();
     CloseWindow();
     return 0;
 }
+

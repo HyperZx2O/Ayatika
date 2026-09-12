@@ -3,7 +3,6 @@
 
 #include <raylib.h>
 #include "quran.h"
-#include "mock_data.h"
 
 /* ── Scaling system ── */
 typedef struct {
@@ -50,6 +49,7 @@ Scale computeScale(int sw, int sh);
 
 extern Font arabicFont;
 extern Font uiFont;
+extern Font bengaliFont;
 
 void initFonts(AppState *state);
 void closeFonts(void);
@@ -72,7 +72,7 @@ void drawSidebar(AppState *state);
 void drawFooter(AppState *state);
 void drawHelpOverlay(AppState *state);
 void drawBookmarkPopup(AppState *state);
-void showBookmarkPopup(void);
+void showBookmarkPopupRef(int surah, int ayah);
 
 void drawArabicTextCentered(const char *text, Rectangle bounds, float size, Color color);
 void drawArabicVisualCentered(const char *visualText, Rectangle bounds, float size, Color color);

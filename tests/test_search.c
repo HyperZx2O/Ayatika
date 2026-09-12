@@ -3,7 +3,7 @@
  * Compile + run (standalone, headless — no window needed):
  *
  *   gcc -std=c11 -Wall -Wextra -Isrc -Ilib test_search.c \
- *       src/search.c src/mock_data.c -lraylib -lm -o test_search
+ *       src/search.c tests/test_data.c -lraylib -lm -o test_search
  *
  * (search.c now contains the drawSearch UI from Phase 7, so the link
  * line needs raylib even though this harness never opens a window.)
@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "search.h"
-#include "mock_data.h"
+#include "test_data.h"
 
 static int failures = 0;
 
@@ -43,7 +43,7 @@ static int isSortedDesc(SearchResult *results, int count) {
 int main(void) {
     AppState state;
     memset(&state, 0, sizeof(AppState));
-    loadMockData(&state);
+    loadTestData(&state);
 
     SearchResult results[MAX_SEARCH_RESULTS];
     int count;
@@ -98,7 +98,7 @@ int main(void) {
        exhaust against a ~450-char string. */
     setQuery(&state, "Kursi");
     runSearch(&state, results, &count);
-    // ponytail: expanded mock (40 ayahs) may fuzzy-match Kursi in other short verses; check 2:255 is present and its preview is truncated
+    // expanded mock (40 ayahs) may fuzzy-match Kursi in other short verses; check 2:255 is present and its preview is truncated
     check("'Kursi' returns at least 1 result", count >= 1);
     int has255 = 0, truncOk = 0;
     for (int i = 0; i < count; i++) if (results[i].surahNumber==2 && results[i].ayahNumber==255) {
@@ -119,6 +119,22 @@ int main(void) {
           (setQuery(&state, "Allah"), runSearch(&state, results, &count),
            count <= MAX_SEARCH_RESULTS));
 
+    /* Go-to palette filter over the 6-surah fixture */
+    int pal[16];
+    check("palette empty query returns all surahs", paletteFilter(&state, "", pal, 16) == 6);
+    check("palette empty query preserves order",
+          pal[0] == 0 && state.surahs[pal[0]].number == 1);
+    int nf = paletteFilter(&state, "fatiha", pal, 16);
+    check("palette 'fatiha' top match is surah 1",
+          nf >= 1 && state.surahs[pal[0]].number == 1);
+    int n112 = paletteFilter(&state, "112", pal, 16);
+    check("palette '112' finds surah 112 only",
+          n112 == 1 && state.surahs[pal[0]].number == 112);
+    check("palette '11' prefix-matches 112/113/114",
+          paletteFilter(&state, "11", pal, 16) == 3);
+    check("palette gibberish returns 0", paletteFilter(&state, "zzz", pal, 16) == 0);
+    check("palette honors maxOut", paletteFilter(&state, "", pal, 3) == 3);
+
     if (failures > 0) {
         printf("%d check(s) FAILED\n", failures);
         return 1;
@@ -126,3 +142,4 @@ int main(void) {
     printf("All search checks passed\n");
     return 0;
 }
+

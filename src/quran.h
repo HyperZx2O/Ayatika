@@ -1,7 +1,10 @@
 #ifndef QURAN_H
 #define QURAN_H
 
-#include <raylib.h>
+/* no raylib include — no shared struct uses raylib types;
+// keeps backend compilable without the graphics headers. */
+#include <stdarg.h>
+#include <stdio.h>
 
 /* ============================================================
  * AYATIKA — SHARED HEADER
@@ -31,9 +34,10 @@ typedef struct {
 typedef struct {
     int    surahNumber;
     int    ayahNumber;
-    char   arabicText[2048];
-    char   translationEn[2048];
-    char   translationBn[2048];
+    /* 4096 — real maxima are 2283 (ar, 2:282) and 3325 (bn). */
+    char   arabicText[4096];
+    char   translationEn[4096];
+    char   translationBn[4096];
     char   audioUrl[256];           /* CDN URL for recitation */
 } Ayah;
 
@@ -42,13 +46,12 @@ typedef struct {
     int    surahNumber;
     int    ayahNumber;
     char   tag[128];
-    char   note[1024];
     long   timestamp;
 } Bookmark;
 
 typedef struct {
     char   name[64];
-    char   text[1024];
+    char  *text;                 /* heap-allocated full narration (may exceed 17KB) */
     char   narrator[128];
     char   collection[32];          /* "Bukhari" or "Muslim" */
 } Hadith;
@@ -81,7 +84,6 @@ typedef enum {
     SCREEN_DASHBOARD = 0,
     SCREEN_SURAH_LIST,
     SCREEN_AYAH_READER,
-    SCREEN_SEARCH,
     SCREEN_BOOKMARKS,
     SCREEN_SCREENSAVER,
     SCREEN_SURAH_OVERVIEW,
@@ -119,6 +121,7 @@ typedef struct {
     int            focusMode;          /* 1 = dimmed background active */
     int            showHelp;
     char           statusMsg[256];
+    int            statusTone;        /* 0 = info, 1 = alert (footer tints it) */
 
     /* Audio (Systems) */
     int            isPlayingRecitation;
@@ -133,6 +136,12 @@ typedef struct {
     SearchResult   searchResults[MAX_SEARCH_RESULTS];
     int            searchResultCount;
 
+    /* Go-to palette + list jump (Frontend) */
+    int            showGoToPalette;   /* 1 = Finder overlay open */
+    int            paletteMode;       /* 0 = surahs, 1 = ayahs */
+    char           paletteQuery[64];  /* overlay filter text */
+    int            paletteSelection;  /* index into filtered matches */
+
     /* Config (Backend) */
     float          latitude;
     float          longitude;
@@ -141,8 +150,9 @@ typedef struct {
 
     /* Navigation extras */
     int            hubCursor;           /* 0 = Surah tile, 1 = Hadith tile in reading hub */
-    int            hadithCursor;        /* selected hadith in hadith page */
-    AppScreen      settingsOrigin;      /* screen active before settings was opened */
+    int            hadithCursor;        /* selected hadith in hadith page (filtered view) */
+    int            hadithFilter;        /* 0 = All, 1 = Bukhari, 2 = Muslim */
+    int            showHadithModal;     /* 1 = full-hadith modal open */
 
     /* Settings */
     int            vimMotions;          /* 1 = vim j/k/h/l bindings, 0 = arrows */
@@ -151,12 +161,24 @@ typedef struct {
     int            autoResume;          /* auto-resume last reading position */
 } AppState;
 
+/* single writer for status + tone — they can never disagree. */
+static inline void setStatus(AppState *state, int tone, const char *fmt, ...) {
+    if (!state || !fmt) return;
+    state->statusTone = tone;
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(state->statusMsg, sizeof(state->statusMsg), fmt, ap);
+    va_end(ap);
+}
+
 /* ============================================================
  * PUBLIC API
  * ============================================================ */
 
 /* quran.c */
 int   loadQuranData(AppState *state);
+int   loadHadiths(AppState *state); /* API bulk (Bukhari+Muslim) or bundled fallback */
+void  freeHadiths(AppState *state); /* release texts + array (safe on empty) */
 Ayah *getAyah(AppState *state, int surahNum, int ayahNum);
 int   getAyahIndex(AppState *state, int surahNum, int ayahNum);
 int   getDailyAyahIndex(int totalAyahs);
@@ -166,6 +188,8 @@ void  updatePrayerTimes(AppState *state);
 int   isProhibitedTime(PrayerTimes *pt);
 char *getNextPrayerName(PrayerTimes *pt);
 float getNextPrayerTime(PrayerTimes *pt);
+int   nextPrayerIndex(PrayerTimes *pt); /* 0-4 Fajr..Isha for the slot getNextPrayerTime picks */
+float prayerNowHours(void);             /* current local time as hours, for alert math */
 char *formatCountdown(float targetTime);
 
 /* db.c */
@@ -184,3 +208,4 @@ void  loadConfig(AppState *state);
 void  saveConfig(AppState *state);
 
 #endif /* QURAN_H */
+

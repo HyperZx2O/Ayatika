@@ -8,9 +8,19 @@
 #include "ui.h"
 #include "theme.h"
 #include "input.h"
+#include "search.h"
+#include "screensaver.h"
+
+/* Forward declarations for helpers used before their definitions. */
+static int reorderArabic(const char *text, char *visualOut, int outSize);
+static float drawArabicWrapped(Font af, const char *visual, float xRight, float yTop,
+                               float maxW, float maxH, float size0, float sizeMin, Color color);
+static void drawWrappedText(const char *text, Rectangle bounds, int fontSize, Color color);
+static void drawBookmarkEditor(AppState *state);
 
 Font arabicFont;
 Font uiFont;
+Font bengaliFont;
 
 Scale S;
 
@@ -90,7 +100,7 @@ Scale computeScale(int sw, int sh) {
     s.popupW = SCL(600);
     s.popupH = SCL(320);
     s.helpW  = SCL(520);
-    s.helpH  = SCL(420);
+    s.helpH  = SCL(480);
 
     s.sidebarRowH  = SCL(48);
     s.bookmarkRowH = SCL(58);
@@ -111,50 +121,32 @@ Scale computeScale(int sw, int sh) {
     return s;
 }
 
-static void collectArabicCodepoints(AppState *state, int *out, int *outCount, int maxCount) {
-    /* Build a string of all Arabic text from mock data, then extract unique codepoints */
-    static char allText[32768];
-    int pos = 0;
-
-    /* Surah arabic names */
-    for (int i = 0; i < 7 && i < TOTAL_SURAHS; i++) {
-        if (!state->surahs[i].arabicName[0]) continue;
-        int len = (int)strlen(state->surahs[i].arabicName);
-        if (pos + len + 1 < (int)sizeof(allText)) {
-            memcpy(allText + pos, state->surahs[i].arabicName, len);
-            pos += len;
-            allText[pos++] = ' ';
-        }
-    }
-
-    /* Ayah arabic text */
-    for (int i = 0; i < state->totalAyahs; i++) {
-        if (!state->ayahs[i].arabicText[0]) continue;
-        int len = (int)strlen(state->ayahs[i].arabicText);
-        if (pos + len + 1 < (int)sizeof(allText)) {
-            memcpy(allText + pos, state->ayahs[i].arabicText, len);
-            pos += len;
-            allText[pos++] = ' ';
-        }
-    }
-    allText[pos] = '\0';
-
-    /* Use RayLib to extract codepoints from the concatenated UTF-8 string */
+static void addCodepoints(const char *text, int *out, int *outCount, int maxCount) {
+    if (!text || !*text) return;
     int totalCount = 0;
-    int *allCodepoints = LoadCodepoints(allText, &totalCount);
-
-    /* Deduplicate using a seen-set (just check against output array) */
-    *outCount = 0;
+    int *cps = LoadCodepoints(text, &totalCount);
+    if (!cps) return;
     for (int i = 0; i < totalCount && *outCount < maxCount; i++) {
-        int cp = allCodepoints[i];
         int seen = 0;
         for (int j = 0; j < *outCount; j++) {
-            if (out[j] == cp) { seen = 1; break; }
+            if (out[j] == cps[i]) { seen = 1; break; }
         }
-        if (!seen) out[(*outCount)++] = cp;
+        if (!seen) out[(*outCount)++] = cps[i];
     }
+    UnloadCodepoints(cps);
+}
 
-    UnloadCodepoints(allCodepoints);
+static void collectArabicCodepoints(AppState *state, int *out, int *outCount, int maxCount) {
+    /* per-string walk — no giant concat buffer to overflow. */
+    *outCount = 0;
+
+    /* Surah arabic names */
+    for (int i = 0; i < state->surahCount && *outCount < maxCount; i++)
+        addCodepoints(state->surahs[i].arabicName, out, outCount, maxCount);
+
+    /* Ayah arabic text (full 6236-ayah walk; each string is small) */
+    for (int i = 0; i < state->totalAyahs && *outCount < maxCount; i++)
+        addCodepoints(state->ayahs[i].arabicText, out, outCount, maxCount);
 
     /* FriBidi shaping converts Arabic letters to Presentation Forms (U+FE70-U+FEFF).
        We MUST also load these ranges so the shaped output has glyphs in the atlas. */
@@ -203,25 +195,226 @@ void initFonts(AppState *state) {
         arabicFont = GetFontDefault();
     }
 
-    /* Load JetBrains Mono for UI text — Latin + punctuation only */
+    /* Load JetBrains Mono for UI text — Latin + punctuation + ★ */
     int uiCodepoints[320];
     int uiCount = 0;
     for (int i = 0x0020; i <= 0x007E; i++) uiCodepoints[uiCount++] = i;
     for (int i = 0x00A0; i <= 0x00FF; i++) uiCodepoints[uiCount++] = i;
     for (int i = 0x2000; i <= 0x206F; i++) uiCodepoints[uiCount++] = i;
+    uiCodepoints[uiCount++] = 0x2605; /* bookmark star */
 
     uiFont = LoadFontEx("assets/JetBrainsMono-Regular.ttf", 96, uiCodepoints, uiCount);
     if (uiFont.texture.id > 0)
         SetTextureFilter(uiFont.texture, TEXTURE_FILTER_BILINEAR);
     else
         uiFont = GetFontDefault();
+
+    /* Load Hind Siliguri for Bengali translations */
+    int bnCodepoints[256];
+    int bnCount = 0;
+    for (int i = 0x0980; i <= 0x09FF; i++) bnCodepoints[bnCount++] = i;
+    for (int i = 0x0020; i <= 0x007E; i++) bnCodepoints[bnCount++] = i;
+
+    bengaliFont = LoadFontEx("assets/HindSiliguri-Regular.ttf", 96, bnCodepoints, bnCount);
+    if (bengaliFont.texture.id > 0) {
+        SetTextureFilter(bengaliFont.texture, TEXTURE_FILTER_BILINEAR);
+        printf("Hind Siliguri loaded: %dx%d atlas, %d glyphs\n",
+               bengaliFont.texture.width, bengaliFont.texture.height,
+               bengaliFont.glyphCount);
+    } else {
+        printf("WARNING: Hind Siliguri failed to load, Bengali falls back to UI font\n");
+        bengaliFont = uiFont;
+    }
 }
 
 void closeFonts(void) {
+    if (bengaliFont.texture.id > 0 && bengaliFont.texture.id != uiFont.texture.id &&
+        bengaliFont.texture.id != arabicFont.texture.id)
+        UnloadFont(bengaliFont);
     if (uiFont.texture.id > 0 && uiFont.texture.id != arabicFont.texture.id)
         UnloadFont(uiFont);
     if (arabicFont.texture.id > 0)
         UnloadFont(arabicFont);
+}
+
+/* ── Finder overlay: Surahs | Ayahs tabs (input lives in input.c) ── */
+#define PALETTE_ROWS 8
+#define FINDER_AYAH_ROWS 5
+
+static void drawGoToPalette(AppState *state) {
+    Theme *t = getTheme(state->currentTheme);
+    int sw = GetScreenWidth(), sh = GetScreenHeight();
+    DrawRectangle(0, 0, sw, sh, (Color){0, 0, 0, 180});
+    int cw = (int)(560 * S.factor), ch = (int)(440 * S.factor);
+    int cx = (sw - cw) / 2, cy = (sh - ch) / 2;
+    DrawRectangleRounded((Rectangle){(float)cx, (float)cy, (float)cw, (float)ch},
+                         0.06f, 8, t->surface);
+    DrawRectangleRoundedLines((Rectangle){(float)cx, (float)cy, (float)cw, (float)ch},
+                              0.06f, 8, t->border);
+
+    int pad = (int)(24 * S.factor);
+    int titleY = cy + (int)(18 * S.factor);
+    DrawTextEx(uiFont, "Finder", (Vector2){(float)(cx + pad), (float)titleY}, S.fs22, 1, t->accent);
+
+    /* Tabs, right-aligned + clickable */
+    const char *tabS = "Surahs", *tabA = "Ayahs";
+    float wS = MeasureTextEx(uiFont, tabS, S.fs16, 1).x;
+    float wA = MeasureTextEx(uiFont, tabA, S.fs16, 1).x;
+    int tgap = (int)(16 * S.factor);
+    float xA = (float)(cx + cw - pad) - wA;
+    float xS = xA - tgap - wS;
+    int surActive = (state->paletteMode == 0);
+    DrawTextEx(uiFont, tabS, (Vector2){xS, (float)(titleY + 2)}, S.fs16, 1, surActive ? t->accent : t->muted);
+    DrawTextEx(uiFont, tabA, (Vector2){xA, (float)(titleY + 2)}, S.fs16, 1, surActive ? t->muted : t->accent);
+    if (surActive)
+        DrawRectangle((int)xS, titleY + 2 + S.fs16 + 2, (int)wS, (int)(2 * S.factor), t->accent);
+    else
+        DrawRectangle((int)xA, titleY + 2 + S.fs16 + 2, (int)wA, (int)(2 * S.factor), t->accent);
+    Vector2 mp = GetMousePosition();
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (CheckCollisionPointRec(mp, (Rectangle){xS - 4, (float)titleY, wS + 8, (float)(S.fs16 + 8)})) {
+            state->paletteMode = 0;
+            state->paletteSelection = 0;
+        } else if (CheckCollisionPointRec(mp, (Rectangle){xA - 4, (float)titleY, wA + 8, (float)(S.fs16 + 8)})) {
+            state->paletteMode = 1;
+            state->paletteSelection = 0;
+        }
+    }
+
+    int qy = cy + (int)(54 * S.factor), qh = (int)(38 * S.factor);
+    DrawRectangle(cx + pad, qy, cw - 2 * pad, qh, t->background);
+    DrawRectangleLines(cx + pad, qy, cw - 2 * pad, qh, t->accent);
+    char qdisp[72];
+    snprintf(qdisp, sizeof(qdisp), "%s|", state->paletteQuery);
+    DrawTextEx(uiFont, qdisp, (Vector2){(float)(cx + pad + S.gx), (float)(qy + (qh - S.fs18) / 2)}, S.fs18, 1, t->foreground);
+
+    int rowsDrawn = 0;
+    if (surActive) {
+        static int matches[128];
+        int n = paletteFilter(state, state->paletteQuery, matches, 128);
+        int sel = state->paletteSelection;
+        if (n == 0 || sel < 0) sel = 0;
+        if (n > 0 && sel >= n) sel = n - 1;
+        int start = (sel >= PALETTE_ROWS) ? sel - PALETTE_ROWS + 1 : 0;
+        int rowH = (int)(36 * S.factor), ry0 = qy + qh + S.gy;
+        for (int r = 0; r < PALETTE_ROWS; r++) {
+            int mi = start + r;
+            if (mi >= n) break;
+            int ry = ry0 + r * rowH;
+            if (ry + rowH > cy + ch - (int)(28 * S.factor)) break;
+            rowsDrawn++;
+            Surah *s = &state->surahs[matches[mi]];
+            /* hover selects, click opens — mirrors the hadith list. */
+            Rectangle rowR = {(float)(cx + pad), (float)ry, (float)(cw - 2 * pad), (float)(rowH - 4)};
+            if (CheckCollisionPointRec(GetMousePosition(), rowR)) {
+                state->paletteSelection = mi;
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+                    openFinderMatch(state);
+            }
+            if (mi == sel) {
+                DrawRectangleRounded((Rectangle){(float)(cx + pad), (float)ry, (float)(cw - 2 * pad), (float)(rowH - 4)},
+                                     0.08f, 4, t->background);
+                DrawRectangle(cx + pad, ry + 5, (int)(3 * S.factor), rowH - 14, t->accent);
+            }
+            char num[8];
+            snprintf(num, sizeof(num), "%d", s->number);
+            DrawTextEx(uiFont, num, (Vector2){(float)(cx + pad + S.gx), (float)(ry + 5)}, S.fs14, 1, t->accent);
+            DrawTextEx(uiFont, s->name, (Vector2){(float)(cx + pad + (int)(56 * S.factor)), (float)(ry + 4)}, S.fs16, 1,
+                       mi == sel ? t->foreground : t->muted);
+            char meta[48];
+            snprintf(meta, sizeof(meta), "%d ayahs, %s", s->ayahCount, s->revelationType);
+            float mw = MeasureTextEx(uiFont, meta, S.fs12, 1).x;
+            DrawTextEx(uiFont, meta, (Vector2){(float)(cx + cw - pad - mw), (float)(ry + 7)}, S.fs12, 1, t->muted);
+        }
+        if (rowsDrawn == 0)
+            DrawTextEx(uiFont, "No results found.", (Vector2){(float)(cx + pad + S.gx), (float)ry0}, S.fs14, 1, t->muted);
+    } else {
+        int n = state->searchResultCount;
+        int sel = state->paletteSelection;
+        if (n == 0 || sel < 0) sel = 0;
+        if (n > 0 && sel >= n) sel = n - 1;
+        int start = (sel >= FINDER_AYAH_ROWS) ? sel - FINDER_AYAH_ROWS + 1 : 0;
+        int rowH = (int)(58 * S.factor), ry0 = qy + qh + S.gy;
+        for (int r = 0; r < FINDER_AYAH_ROWS; r++) {
+            int mi = start + r;
+            if (mi >= n) break;
+            int ry = ry0 + r * rowH;
+            if (ry + rowH > cy + ch - (int)(28 * S.factor)) break;
+            rowsDrawn++;
+            SearchResult *sr = &state->searchResults[mi];
+            Rectangle rowR = {(float)(cx + pad), (float)ry, (float)(cw - 2 * pad), (float)(rowH - 4)};
+            if (CheckCollisionPointRec(GetMousePosition(), rowR)) {
+                state->paletteSelection = mi;
+                if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+                    openFinderMatch(state);
+            }
+            if (mi == sel) {
+                DrawRectangleRounded((Rectangle){(float)(cx + pad), (float)ry, (float)(cw - 2 * pad), (float)(rowH - 4)},
+                                     0.08f, 4, t->background);
+                DrawRectangle(cx + pad, ry + 5, (int)(3 * S.factor), rowH - 14, t->accent);
+            }
+            char ref[32];
+            snprintf(ref, sizeof(ref), "%d:%d", sr->surahNumber, sr->ayahNumber);
+            DrawTextEx(uiFont, ref, (Vector2){(float)(cx + pad + S.gx), (float)(ry + 4)}, S.fs14, 1, t->accent);
+            /* 48-char ellipsis — overlay rows are narrower than the old screen. */
+            char preview[56];
+            strncpy(preview, sr->preview, 48);
+            preview[48] = '\0';
+            if (strlen(sr->preview) > 48) strcat(preview, "...");
+            DrawTextEx(uiFont, preview, (Vector2){(float)(cx + pad + S.gx), (float)(ry + 4 + S.fs14 + 2)}, S.fs13, 1,
+                       mi == sel ? t->foreground : t->muted);
+        }
+        if (rowsDrawn == 0) {
+            const char *msg = strlen(state->paletteQuery) < 2
+                ? "Type at least 2 characters to search..."
+                : "No results found.";
+            DrawTextEx(uiFont, msg, (Vector2){(float)(cx + pad + S.gx), (float)ry0}, S.fs14, 1, t->muted);
+        }
+    }
+    const char *hint = "Tab switch tab - j/k + Enter to open - Esc to close";
+    float hw = MeasureTextEx(uiFont, hint, S.fs12, 1).x;
+    DrawTextEx(uiFont, hint, (Vector2){(float)(cx + (cw - hw) / 2), (float)(cy + ch - S.fs12 - 8)}, S.fs12, 1, t->muted);
+}
+
+/* ── Bookmark tag editor (input lives in input.c) ── */
+static void drawBookmarkEditor(AppState *state) {
+    Theme *t = getTheme(state->currentTheme);
+    int sw = GetScreenWidth(), sh = GetScreenHeight();
+    DrawRectangle(0, 0, sw, sh, (Color){0, 0, 0, 180});
+    int cw = (int)(560 * S.factor), chh = (int)(220 * S.factor);
+    int cx = (sw - cw) / 2, cy = (sh - chh) / 2;
+    DrawRectangleRounded((Rectangle){(float)cx, (float)cy, (float)cw, (float)chh},
+                         0.06f, 8, t->surface);
+    DrawRectangleRoundedLines((Rectangle){(float)cx, (float)cy, (float)cw, (float)chh},
+                              0.06f, 8, t->border);
+
+    int pad = (int)(24 * S.factor);
+    int blink = (((int)(GetTime() * 2.0) % 2) == 0);
+    char title[32];
+    snprintf(title, sizeof(title), "Bookmark %d:%d", state->currentSurah, state->currentAyah);
+    DrawTextEx(uiFont, title, (Vector2){(float)(cx + pad), (float)(cy + (int)(18 * S.factor))},
+               S.fs22, 1, t->accent);
+
+    /* Tag — single line, drop-from-front on overflow (ASCII-only input) */
+    int tagY = cy + (int)(58 * S.factor);
+    DrawTextEx(uiFont, "Tag", (Vector2){(float)(cx + pad), (float)tagY}, S.fs14, 1, t->muted);
+    int tagBoxY = tagY + S.fs14 + S.gy / 2, tagBoxH = (int)(36 * S.factor);
+    DrawRectangle(cx + pad, tagBoxY, cw - 2 * pad, tagBoxH, t->background);
+    DrawRectangleLines(cx + pad, tagBoxY, cw - 2 * pad, tagBoxH, t->accent);
+    {
+        char disp[160];
+        snprintf(disp, sizeof(disp), "%s%s", getBookmarkTag(), blink ? "|" : "");
+        int maxTW = cw - 2 * pad - 2 * S.gx;
+        const char *vis = disp;
+        while (vis[0] && MeasureTextEx(uiFont, vis, S.fs14, 1).x > maxTW) vis++;
+        DrawTextEx(uiFont, vis, (Vector2){(float)(cx + pad + S.gx), (float)(tagBoxY + (tagBoxH - S.fs14) / 2)},
+                   S.fs14, 1, t->foreground);
+    }
+
+    const char *hint = "Type a tag   Enter save   Esc cancel";
+    float hw = MeasureTextEx(uiFont, hint, S.fs12, 1).x;
+    DrawTextEx(uiFont, hint, (Vector2){(float)(cx + (cw - hw) / 2), (float)(cy + chh - S.fs12 - 8)},
+               S.fs12, 1, t->muted);
 }
 
 void drawCurrentScreen(AppState *state) {
@@ -245,61 +438,14 @@ void drawCurrentScreen(AppState *state) {
             DrawRectangle(0, 0, sw, sh, t->background);
             drawAyahReader(state);
             break;
-        case SCREEN_SEARCH: {
-            ClearBackground(t->background);
-            DrawRectangle(0, 0, sw, sh, t->background);
-            int boxW = (int)(500 * S.factor), boxH = (int)(56 * S.factor);
-            int bx = sw/2-boxW/2, by = sh/2-boxH/2;
-            DrawRectangleRounded((Rectangle){(float)bx, (float)by, (float)boxW, (float)boxH},
-                                 0.12f, 8, t->surface);
-            DrawRectangleRoundedLines((Rectangle){(float)bx, (float)by, (float)boxW, (float)boxH},
-                                      0.12f, 8, t->accent);
-            /* Search icon + hint */
-            DrawTextEx(uiFont, "\xe2\x9c\x93", (Vector2){(float)(bx + S.cardPadX + S.gx), (float)(by + (boxH - S.fs16) / 2)}, S.fs16, 1, t->muted);
-            const char *searchHint = "Search surahs, ayahs, and topics";
-            DrawTextEx(uiFont, searchHint, (Vector2){(float)(bx + S.cardPadX + S.gx + S.fs16 + S.gy/2), (float)(by + (boxH - S.fs14) / 2)}, S.fs14, 1, t->muted);
-            /* Keyboard shortcut hint */
-            const char *searchSub = "Press Enter to search, Esc to close";
-            int twSub = MeasureTextEx(uiFont, searchSub, S.fs13, 1).x;
-            DrawTextEx(uiFont, searchSub, (Vector2){(float)(sw/2 - twSub/2), (float)(by + boxH + S.gy)}, S.fs13, 1, t->muted);
-            break;
-        }
         case SCREEN_BOOKMARKS:
             ClearBackground(t->background);
             DrawRectangle(0, 0, sw, sh, t->background);
             drawBookmarks(state);
             break;
         case SCREEN_SCREENSAVER: {
-            ClearBackground(BLACK);
-            /* Floating digital clock with Ayatika branding */
-            time_t now = time(NULL);
-            struct tm *lt = localtime(&now);
-            char tbuf[32];
-            snprintf(tbuf, sizeof(tbuf), "%02d:%02d:%02d", lt->tm_hour, lt->tm_min, lt->tm_sec);
-            float tw = MeasureTextEx(uiFont, tbuf, S.fs48, 1).x;
-            float tx = (sw - tw) / 2;
-            /* Center the clock+date group vertically */
-            float groupH = S.fs48 + S.gy + S.fs18;
-            float ty = sh / 2 - groupH / 2;
-            /* Draw subtle glow effect */
-            Color glowColor = t->accent;
-            glowColor.a = 40;
-            for (int g = 1; g <= 4; g++)
-                DrawTextEx(uiFont, tbuf, (Vector2){(float)(tx - g*0.5f), (float)(ty)}, S.fs48, 1, glowColor);
-            DrawTextEx(uiFont, tbuf, (Vector2){(float)(tx), (float)(ty)}, S.fs48, 1, t->accent);
-
-            /* Date subtitle */
-            static const char *wd[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-            static const char *mo[] = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
-            char dbuf[64];
-            snprintf(dbuf, sizeof(dbuf), "%s, %s %d", wd[lt->tm_wday], mo[lt->tm_mon], lt->tm_mday);
-            float dw = MeasureTextEx(uiFont, dbuf, S.fs18, 1).x;
-            DrawTextEx(uiFont, dbuf, (Vector2){(float)((sw - dw)/2), (float)(ty + S.fs48 + S.gy)}, S.fs18, 1, t->muted);
-
-            /* Ayatika branding at bottom */
-            const char *brand = "Ayatika";
-            float bw = MeasureTextEx(uiFont, brand, S.fs14, 1).x;
-            DrawTextEx(uiFont, brand, (Vector2){(float)((sw - bw)/2), (float)(sh - S.footerH - S.gy)}, S.fs14, 1, t->muted);
+            /* systems owns the visuals + Azan; ui keeps no fork. */
+            drawScreensaver(state);
             break;
         }
         case SCREEN_SURAH_OVERVIEW:
@@ -323,6 +469,9 @@ void drawCurrentScreen(AppState *state) {
             drawHadithPage(state);
             break;
     }
+    /* palette floats above any screen; help draws above it in main. */
+    if (state->showGoToPalette) drawGoToPalette(state);
+    if (isEditingBookmark()) drawBookmarkEditor(state);
 }
 
 static void nextPrayerInfo(AppState *state, char *name, int nameSz, char *countdown, int cdSz, float *progress);
@@ -338,6 +487,10 @@ static Rectangle cardRect(int index) {
     int topH = (int)(ch * 0.28f);
     int midH = (int)(ch * 0.38f);
     int botH = (sh - FOOTER_H - gy) - (y0 + topH + midH + 2 * gy);
+    /* extremes guard — short windows collapse, never invert. */
+    if (topH < 24) topH = 24;
+    if (midH < 24) midH = 24;
+    if (botH < 24) botH = 24;
     switch (index) {
         case 0: return (Rectangle){(float)mx, (float)y0, (float)halfW, (float)topH};
         case 1: return (Rectangle){(float)(mx + halfW + gx), (float)y0, (float)halfW, (float)topH};
@@ -349,19 +502,40 @@ static Rectangle cardRect(int index) {
 }
 
 static double bookmarkPopupTime = 0;
+static char bookmarkPopupMsg[32] = "Bookmark saved";
 
-void showBookmarkPopup(void) {
+/* delight — the toast names what was saved. */
+void showBookmarkPopupRef(int surah, int ayah) {
+    snprintf(bookmarkPopupMsg, sizeof(bookmarkPopupMsg), "Bookmarked %d:%d", surah, ayah);
     bookmarkPopupTime = GetTime();
 }
 
 /* Forward declaration needed because drawDashboard calls reorderArabic before its definition */
 static int reorderArabic(const char *text, char *visualOut, int outSize);
 
+static int surahIndexByNumber(AppState *state, int surahNum) {
+    if (!state || !state->surahs) return -1;
+    for (int i = 0; i < state->surahCount; i++)
+        if (state->surahs[i].number == surahNum) return i;
+    return -1;
+}
+
+static Surah *surahByNumber(AppState *state, int surahNum) {
+    int i = surahIndexByNumber(state, surahNum);
+    return (i >= 0) ? &state->surahs[i] : NULL;
+}
+
 static int isBookmarked(int surah, int ayah) {
-    for (int i = 0; i < mockBookmarkCount; i++)
-        if (mockBookmarks[i].surahNumber == surah &&
-            mockBookmarks[i].ayahNumber == ayah)
-            return 1;
+    return bookmarkExists(surah, ayah);
+}
+
+static long bookmarkTimestamp(int surah, int ayah) {
+    /* direct DB scan; bookmark lists are tiny. */
+    Bookmark rows[256];
+    int n = loadBookmarks(rows, 256);
+    for (int i = 0; i < n; i++)
+        if (rows[i].surahNumber == surah && rows[i].ayahNumber == ayah)
+            return rows[i].timestamp;
     return 0;
 }
 
@@ -386,41 +560,44 @@ static const char *formatRelativeTime(long timestamp) {
     return buf;
 }
 
-static void drawWrappedText(const char *text, Rectangle bounds, int fontSize, Color color) {
-    if (!text || !*text) return;
-    Font f = uiFont;
-    int y = (int)bounds.y;
-    int lineH = fontSize + 4;
+/* wrapped text with pixel scroll offset; returns total content height. */
+static int drawWrappedTextScroll(const char *text, Rectangle bounds, Font f, int fontSize, Color color, int yOff) {
+    if (!text || !*text) return 0;
+    /* 1.375 leading for body copy — translations and hadith read long. */
+    int lineH = fontSize + (fontSize >= 16 ? 6 : 4);
+    int totalH = 0;
     const char *lineStart = text;
 
-    while (*lineStart && y + fontSize <= (int)(bounds.y + bounds.height)) {
+    while (*lineStart) {
         char lineBuf[2048];
         const char *p = lineStart;
         const char *lastSpace = NULL;
         int flushed = 0;
 
         while (*p && *p != '\n') {
-            int len = p - lineStart + 1;
-            if (len >= (int)sizeof(lineBuf)) break;
+            int len = (int)(p - lineStart + 1);
+            if (len >= (int)sizeof(lineBuf) - 1) len = (int)sizeof(lineBuf) - 1;
 
-            memcpy(lineBuf, lineStart, len);
+            memcpy(lineBuf, lineStart, (size_t)len);
             lineBuf[len] = '\0';
-            float w = MeasureTextEx(f, lineBuf, fontSize, 1).x;
+            float w = MeasureTextEx(f, lineBuf, (float)fontSize, 1).x;
 
             if (w > bounds.width && len > 1) {
                 int flushLen;
                 const char *nextStart;
                 if (lastSpace) {
-                    flushLen = lastSpace - lineStart;
+                    flushLen = (int)(lastSpace - lineStart);
                     nextStart = lastSpace + 1;
                 } else {
-                    flushLen = p - lineStart;
+                    flushLen = (int)(p - lineStart);
                     nextStart = p;
                 }
-                memcpy(lineBuf, lineStart, flushLen);
+                memcpy(lineBuf, lineStart, (size_t)flushLen);
                 lineBuf[flushLen] = '\0';
-                DrawTextEx(f, lineBuf, (Vector2){bounds.x, (float)y}, fontSize, 1, color);
-                y += lineH;
+                int ly = (int)bounds.y + totalH - yOff;
+                if (ly + fontSize > bounds.y && ly < bounds.y + bounds.height)
+                    DrawTextEx(f, lineBuf, (Vector2){bounds.x, (float)ly}, (float)fontSize, 1, color);
+                totalH += lineH;
                 lineStart = nextStart;
                 flushed = 1;
                 break;
@@ -431,17 +608,33 @@ static void drawWrappedText(const char *text, Rectangle bounds, int fontSize, Co
         }
 
         if (!flushed) {
-            int len = p - lineStart;
+            /* cap like the measure path — a spaceless run can't smash the stack. */
+            int len = (int)(p - lineStart);
+            if (len > (int)sizeof(lineBuf) - 1) len = (int)sizeof(lineBuf) - 1;
             if (len > 0) {
-                memcpy(lineBuf, lineStart, len);
+                memcpy(lineBuf, lineStart, (size_t)len);
                 lineBuf[len] = '\0';
-                DrawTextEx(f, lineBuf, (Vector2){bounds.x, (float)y}, fontSize, 1, color);
-                y += lineH;
+                int ly = (int)bounds.y + totalH - yOff;
+                if (ly + fontSize > bounds.y && ly < bounds.y + bounds.height)
+                    DrawTextEx(f, lineBuf, (Vector2){bounds.x, (float)ly}, (float)fontSize, 1, color);
+                totalH += lineH;
             }
             if (*p == '\n') lineStart = p + 1;
             else break;
         }
     }
+    return totalH;
+}
+
+static void drawWrappedText(const char *text, Rectangle bounds, int fontSize, Color color) {
+    drawWrappedTextScroll(text, bounds, uiFont, fontSize, color, 0);
+}
+
+/* Bengali translations render in Hind Siliguri, all else in UI font. */
+static Font trFont(AppState *state) {
+    if (strcmp(state->language, "bn") == 0 && bengaliFont.texture.id > 0)
+        return bengaliFont;
+    return uiFont;
 }
 
 void drawDashboard(AppState *state) {
@@ -472,7 +665,8 @@ void drawDashboard(AppState *state) {
         else if (lt->tm_hour >= 12 && lt->tm_hour < 17) greet = "Good afternoon";
         DrawTextEx(uiFont, greet, (Vector2){(float)(px), (float)(py)}, S.fs22, 1, t->foreground); py += S.fs22 + S.gy;
         char sub[128];
-        snprintf(sub, sizeof(sub), "You're in %s", state->surahs[state->currentSurah-1].name);
+        Surah *cur = surahByNumber(state, state->currentSurah);
+        snprintf(sub, sizeof(sub), "You're in %s", cur ? cur->name : "Ayatika");
         DrawTextEx(uiFont, sub, (Vector2){(float)(px), (float)(py)}, S.fs14, 1, t->muted);
     }
     /* PRAYER */
@@ -482,8 +676,8 @@ void drawDashboard(AppState *state) {
         char name[32], cd[16]; float prog;
         nextPrayerInfo(state, name, sizeof(name), cd, sizeof(cd), &prog);
         char line[64];
-        snprintf(line, sizeof(line), "%s -- %s", name, cd);
-        DrawTextEx(uiFont, line, (Vector2){(float)(px), (float)(py)}, S.fs18, 1, t->foreground); py += S.fs18 + S.gy;
+        snprintf(line, sizeof(line), "%s — %s", name, cd);
+        DrawTextEx(uiFont, line, (Vector2){(float)(px), (float)(py)}, S.fs22, 1, t->foreground); py += S.fs22 + S.gy;
         int barW = halfW - 2 * (S.cardPadX + S.gx);
         DrawRectangleRounded((Rectangle){(float)px, (float)py, (float)barW, (float)S.progressH}, 0.3f, 4, t->border);
         DrawRectangleRounded((Rectangle){(float)px, (float)py, (float)barW * prog, (float)S.progressH}, 0.3f, 4, t->accent);
@@ -507,7 +701,7 @@ void drawDashboard(AppState *state) {
         Ayah *a = NULL;
         if (da < state->totalAyahs) a = &state->ayahs[da];
         if (a) {
-            Surah *surah = &state->surahs[a->surahNumber - 1];
+            Surah *surah = surahByNumber(state, a->surahNumber);
 
             /* ── Header row: title + reference pill ── */
             DrawTextEx(uiFont, "Ayah of the Day",
@@ -527,38 +721,19 @@ void drawDashboard(AppState *state) {
             int sep1Y = innerY + S.fs16 + S.gy/2;
             DrawLine(innerX, sep1Y, (int)(r.x + r.width - S.cardPadX - S.gx), sep1Y, t->border);
 
-            /* ── Arabic text — centered, auto-shrink to fit width ── */
+            /* ── Arabic text — hero display size, wrapped block, then separator ── */
             int arabicTop = sep1Y + S.gy/2;
-            int arabicAvailable = (int)(innerH * 0.25f);
+            float arabicMaxH = (float)innerH * 0.55f;
 
-            char visual[4096];
+            char visual[8192];
             int haveVisual = reorderArabic(a->arabicText, visual, sizeof(visual));
             Font af = arabicFont.texture.id > 0 ? arabicFont : uiFont;
-            float arSize = (float)S.fs34;
-            float arSp = arSize * 0.12f;
-            float arW = haveVisual
-                ? MeasureTextEx(af, visual, arSize, arSp).x
-                : MeasureTextEx(uiFont, a->arabicText, arSize, 1).x;
-            float arMin = (float)S.fs14;
-            while (arW > innerW && arSize > arMin) {
-                arSize -= 2;
-                if (arSize < arMin) arSize = arMin;
-                arSp = arSize * 0.12f;
-                arW = haveVisual
-                    ? MeasureTextEx(af, visual, arSize, arSp).x
-                    : MeasureTextEx(uiFont, a->arabicText, arSize, 1).x;
-            }
-            if (haveVisual)
-                drawArabicVisualCentered(visual,
-                    (Rectangle){(float)innerX, (float)arabicTop, (float)innerW, (float)arabicAvailable},
-                    arSize, t->foreground);
-            else
-                drawArabicTextCentered(a->arabicText,
-                    (Rectangle){(float)innerX, (float)arabicTop, (float)innerW, (float)arabicAvailable},
-                    arSize, t->foreground);
+            float arUsed = drawArabicWrapped(af, haveVisual ? visual : a->arabicText,
+                (float)(innerX + innerW), (float)arabicTop,
+                (float)innerW, arabicMaxH, (float)S.fs48, (float)S.fs14, t->foreground);
 
             /* ── Bottom separator ── */
-            int sep2Y = arabicTop + arabicAvailable + S.gy/2;
+            int sep2Y = arabicTop + (int)arUsed + S.gy/2;
             DrawLine(innerX, sep2Y, (int)(r.x + r.width - S.cardPadX - S.gx), sep2Y, t->border);
 
             /* ── Full translation (wrapped, not truncated) ── */
@@ -566,15 +741,19 @@ void drawDashboard(AppState *state) {
             int transBottom = (int)(r.y + r.height - S.cardPadY - S.fs13 - S.gy);
             char *translation = (strcmp(state->language, "bn") == 0)
                                 ? a->translationBn : a->translationEn;
-            drawWrappedText(translation,
+            drawWrappedTextScroll(translation,
                 (Rectangle){(float)innerX, (float)transTop,
                             (float)innerW, (float)(transBottom - transTop)},
-                S.fs14, t->muted);
+                trFont(state), S.fs14, t->muted, 0);
 
             /* ── Footer reference line ── */
             char footerRef[128];
-            snprintf(footerRef, sizeof(footerRef), "%s (%d) -- Ayah %d of %d",
-                     surah->name, surah->number, a->ayahNumber, surah->ayahCount);
+            if (surah)
+                snprintf(footerRef, sizeof(footerRef), "%s (%d) — Ayah %d of %d",
+                         surah->name, surah->number, a->ayahNumber, surah->ayahCount);
+            else
+                snprintf(footerRef, sizeof(footerRef), "%d:%d",
+                         a->surahNumber, a->ayahNumber);
             float fw = MeasureTextEx(uiFont, footerRef, S.fs12, 1).x;
             DrawTextEx(uiFont, footerRef,
                        (Vector2){(float)(r.x + r.width - S.cardPadX - S.gx - fw),
@@ -593,16 +772,41 @@ void drawDashboard(AppState *state) {
     {
         Rectangle r = cards[3];
         int px = r.x + S.cardPadX + S.gx, py = r.y + S.cardPadY;
-        if (state->totalHadiths > 0) {
-            Hadith *h = &state->hadiths[0];
+        int innerW = halfW - 2 * (S.cardPadX + S.gx);
+        if (state->totalHadiths > 0 && state->hadiths) {
+            time_t _ht = time(NULL);
+            struct tm *_htm = localtime(&_ht);
+            int _hi = _htm ? (_htm->tm_yday % state->totalHadiths) : 0;
+            if (_hi < 0) _hi = 0;
+            Hadith *h = &state->hadiths[_hi];
             DrawTextEx(uiFont, h->name, (Vector2){(float)(px), (float)(py)}, S.fs13, 1, t->muted); py += S.fs13 + S.gy/2;
-            char txt[200];
-            strncpy(txt, h->text, sizeof(txt)-1);
-            txt[sizeof(txt)-1] = '\0';
-            if (strlen(h->text) > sizeof(txt)-5) { strcat(txt, "..."); }
-            DrawTextEx(uiFont, txt, (Vector2){(float)(px), (float)(py)}, S.fs14, 1, t->foreground); py += S.fs14 + S.gy/2;
+            /* word-boundary truncate + wrap in card bounds; collection pinned. */
+            char txt[180];
+            {
+                const char *src = h->text ? h->text : "";
+                int lim = (int)sizeof(txt) - 4;
+                int len = (int)strlen(src);
+                if (len <= lim) {
+                    snprintf(txt, sizeof(txt), "%s", src);
+                } else {
+                    int cut = lim;
+                    while (cut > 40 && src[cut] != ' ') cut--;
+                    if (cut <= 40) cut = lim;
+                    memcpy(txt, src, (size_t)cut);
+                    txt[cut] = '\0';
+                    strcat(txt, "...");
+                }
+            }
+            int footH = S.fs12 + S.gy / 2;
+            int textBottom = (int)(r.y + r.height - S.cardPadY - footH - S.gy / 2);
+            drawWrappedText(txt, (Rectangle){(float)px, (float)py, (float)innerW,
+                                             (float)(textBottom - py)},
+                            S.fs14, t->foreground);
             float tw = MeasureTextEx(uiFont, h->collection, S.fs12, 1).x;
-            DrawTextEx(uiFont, h->collection, (Vector2){(float)(px + halfW - 2 * (S.cardPadX + S.gx) - tw), (float)(py)}, S.fs12, 1, t->accent);
+            DrawTextEx(uiFont, h->collection,
+                       (Vector2){(float)(r.x + r.width - S.cardPadX - S.gx - tw),
+                                 (float)(r.y + r.height - S.cardPadY - S.fs12)},
+                       S.fs12, 1, t->accent);
         }
     }
     /* CONTINUE READING */
@@ -611,9 +815,11 @@ void drawDashboard(AppState *state) {
         int px = r.x + S.cardPadX + S.gx, py = r.y + S.cardPadY;
         int sn = state->currentSurah, an = state->currentAyah;
         char ln[96];
-        snprintf(ln, sizeof(ln), "%s, Ayah %d", state->surahs[sn-1].name, an);
+        Surah *cs = surahByNumber(state, sn);
+        if (cs) snprintf(ln, sizeof(ln), "%s, Ayah %d", cs->name, an);
+        else snprintf(ln, sizeof(ln), "Surah %d, Ayah %d", sn, an);
         DrawTextEx(uiFont, ln, (Vector2){(float)(px), (float)(py)}, S.fs22, 1, t->accent); py += S.fs22 + S.gy;
-        long ts = getMockBookmarkTimestamp(state->currentSurah, state->currentAyah);
+        long ts = bookmarkTimestamp(state->currentSurah, state->currentAyah);
         DrawTextEx(uiFont, formatRelativeTime(ts), (Vector2){(float)(px), (float)(py)}, S.fs12, 1, t->muted); py += S.fs12 + S.gy/2;
         DrawTextEx(uiFont, "Press Enter to resume", (Vector2){(float)(px), (float)(py)}, S.fs16, 1, t->foreground);
     }
@@ -626,16 +832,157 @@ void drawSurahList(AppState *state) {
     drawSidebar(state);
     int px = SIDEBAR_W + S.gx;
     DrawTextEx(uiFont, "Select a surah to begin reading", (Vector2){(float)(px), (float)(TOPBAR_H + S.my/2)}, S.fs18, 1, t->muted);
+    /* live digit-jump buffer; letters detour to the palette. */
+    const char *jump = getListJumpBuf();
+    if (jump[0]) {
+        char line[32];
+        snprintf(line, sizeof(line), "Go: %s|", jump);
+        DrawTextEx(uiFont, line, (Vector2){(float)(px), (float)(TOPBAR_H + S.my/2 + S.fs18 + S.gy/2)}, S.fs16, 1, t->accent);
+    }
     drawFooter(state);
 }
 
 /* ── Helper: draw ayah content (text + translation + ref) ── */
+/* raylib advances the pen per codepoint — including zero-advance
+   tashkeel marks (by bitmap width), which spreads Arabic apart and breaks
+   joins. These draw marks overstruck with no advance so bases join; bases
+   keep raylib's own advance rule. Draw and measure must stay paired. */
+static int isArabicMark(int cp) {
+    return (cp >= 0x064B && cp <= 0x0655) || cp == 0x0670 ||
+           (cp >= 0x06D6 && cp <= 0x06ED);
+}
+
+static float shapedGlyphAdvance(Font af, int idx, float scale, float sp, int mark) {
+    if (mark) return 0;
+    float adv = (float)af.glyphs[idx].advanceX;
+    if (adv == 0) adv = (float)af.recs[idx].width;
+    return adv * scale + sp;
+}
+
+static float measureShaped(Font af, const char *text, float size, float sp) {
+    if (af.baseSize <= 0) return 0;
+    float scale = size / (float)af.baseSize;
+    float w = 0;
+    int i = 0;
+    while (text[i]) {
+        int bytes = 0;
+        int cp = GetCodepointNext(text + i, &bytes);
+        w += shapedGlyphAdvance(af, GetGlyphIndex(af, cp), scale, sp, isArabicMark(cp));
+        i += bytes > 0 ? bytes : 1;
+    }
+    return w;
+}
+
+static void drawShaped(Font af, const char *text, Vector2 pos, float size, float sp, Color color) {
+    if (af.baseSize <= 0 || af.texture.id <= 0) return;
+    float scale = size / (float)af.baseSize;
+    float x = pos.x;
+    int i = 0;
+    while (text[i]) {
+        int bytes = 0;
+        int cp = GetCodepointNext(text + i, &bytes);
+        int idx = GetGlyphIndex(af, cp);
+        DrawTextureRec(af.texture,
+            (Rectangle){af.recs[idx].x, af.recs[idx].y, af.recs[idx].width, af.recs[idx].height},
+            (Vector2){x + (float)af.glyphs[idx].offsetX * scale,
+                      pos.y + (float)af.glyphs[idx].offsetY * scale},
+            color);
+        x += shapedGlyphAdvance(af, idx, scale, sp, isArabicMark(cp));
+        i += bytes > 0 ? bytes : 1;
+    }
+}
+
+/* one visual-order wrapper for every shaped-Arabic block — lines
+   flow top-to-bottom, each right-aligned; the block shrinks until it fits
+   maxH. Line spans reference a static arena, valid until the next call. */
+#define AWRAP_MAX_LINES 96
+static char awArena[8192];
+static int awStart[AWRAP_MAX_LINES + 1];
+static int awEnd[AWRAP_MAX_LINES + 1];
+static char awLine[8192];
+
+/* Break visual-order text into lines <= maxW. Returns line count. */
+static int awBreak(const char *visual, Font af, float size, float maxW) {
+    float sp = size * 0.12f;
+    int n = 0, start = 0, pos = 0;
+    awStart[0] = 0;
+    const char *p = visual;
+    while (*p) {
+        while (*p == ' ') p++;
+        if (!*p || n >= AWRAP_MAX_LINES) break;
+        const char *w = p;
+        while (*p && *p != ' ') p++;
+        int wlen = (int)(p - w);
+        int tpos = pos; /* tentative append: space + word */
+        if (tpos > start) awArena[tpos++] = ' ';
+        if (tpos + wlen >= (int)sizeof(awArena) - 1) break; /* arena full */
+        memcpy(awArena + tpos, w, (size_t)wlen); tpos += wlen;
+        awArena[tpos] = '\0';
+        if (measureShaped(af, awArena + start, size, sp) > maxW && pos > start) {
+            awEnd[n] = pos;      /* flush current line, word moves down */
+            n++;
+            awStart[n] = pos;
+            start = pos;
+            memcpy(awArena + pos, w, (size_t)wlen); pos += wlen; /* accept overflow */
+            awArena[pos] = '\0';
+        } else pos = tpos;
+    }
+    awArena[pos] = '\0';
+    if (pos <= start) return n; /* empty input (or only spaces) */
+    awEnd[n] = pos;
+    return n + 1;
+}
+
+/* Draw the wrapped block right-aligned at (xRight, yTop). Returns height used.
+   Result is cached: same text + metrics skips the re-break every frame. */
+static float drawArabicWrapped(Font af, const char *visual, float xRight, float yTop,
+                               float maxW, float maxH, float size0, float sizeMin, Color color) {
+    if (!visual || !*visual || maxW <= 0 || maxH <= 0) return 0;
+    /* FNV-1a over the text + metrics; re-break only on change. */
+    unsigned h = 2166136261u;
+    for (const char *p = visual; *p; p++) { h ^= (unsigned char)*p; h *= 16777619u; }
+    h ^= (unsigned)maxW * 31u + (unsigned)(size0 * 4) * 131u + (unsigned)(sizeMin * 4);
+    static unsigned cacheKey = 0;
+    static int cacheN = 0;
+    static float cacheSize = 0;
+    float size;
+    int n;
+    if (h == cacheKey && cacheN > 0) {
+        size = cacheSize;
+        n = cacheN;
+    } else {
+        size = size0;
+        n = 0;
+        for (;;) {
+            n = awBreak(visual, af, size, maxW);
+            float lh = size + (int)(8 * S.factor);
+            if (n <= 0 || n * lh <= maxH || size <= sizeMin) break;
+            size -= 2;
+            if (size < sizeMin) size = sizeMin;
+        }
+        cacheKey = h;
+        cacheN = n;
+        cacheSize = size;
+    }
+    float lh = size + (int)(8 * S.factor);
+    float sp = size * 0.12f;
+    for (int i = 0; i < n; i++) {
+        int len = awEnd[i] - awStart[i];
+        if (len <= 0) continue;
+        memcpy(awLine, awArena + awStart[i], (size_t)len);
+        awLine[len] = '\0';
+        float w = measureShaped(af, awLine, size, sp);
+        drawShaped(af, awLine, (Vector2){xRight - w, yTop + i * lh}, size, sp, color);
+    }
+    return n * lh;
+}
+
 static void drawAyahContent(AppState *state, Theme *t, int sw, int sh) {
     int mx = SIDEBAR_W + S.mx;
     int my = TOPBAR_H + S.my;
     int mainW = sw - SIDEBAR_W - 2 * S.mx;
 
-    Ayah *ayah = findMockAyah(state, state->currentSurah, state->currentAyah);
+    Ayah *ayah = getAyah(state, state->currentSurah, state->currentAyah);
     if (!ayah) {
         const char *msg = "No ayah loaded for this reference";
         int tw = MeasureTextEx(uiFont, msg, S.fs16, 1).x;
@@ -652,37 +999,28 @@ static void drawAyahContent(AppState *state, Theme *t, int sw, int sh) {
         starInset = (int)(starW + S.gx);
     }
 
-    /* Arabic — right-aligned to the right margin, shrink to fit width */
-    char vis[4096];
+    /* Arabic — wrapped block, right-aligned; translation flows below it. */
+    char vis[8192];
     int haveVisual = reorderArabic(ayah->arabicText, vis, sizeof(vis));
     Font af = arabicFont.texture.id > 0 ? arabicFont : uiFont;
-    float arSize = (float)S.fs34;
-    float arSp = arSize * 0.12f;
-    float arW = haveVisual
-        ? MeasureTextEx(af, vis, arSize, arSp).x
-        : MeasureTextEx(uiFont, ayah->arabicText, arSize, 1).x;
-    float arMin = (float)S.fs14;
-    while (arW > mainW - starInset && arSize > arMin) {
-        arSize -= 2;
-        if (arSize < arMin) arSize = arMin;
-        arSp = arSize * 0.12f;
-        arW = haveVisual
-            ? MeasureTextEx(af, vis, arSize, arSp).x
-            : MeasureTextEx(uiFont, ayah->arabicText, arSize, 1).x;
-    }
-    float arRight = (float)(rightMargin - starInset);
-    float arLeft = arRight - arW;
-    if (haveVisual)
-        DrawTextEx(af, vis, (Vector2){arLeft, (float)my}, arSize, arSp, t->foreground);
-    else
-        DrawTextEx(uiFont, ayah->arabicText, (Vector2){arLeft, (float)my}, arSize, 1, t->foreground);
+    float arMaxH = (float)(sh - FOOTER_H - my - S.fs13 - S.gy - (S.fs16 + 4) * 3 - S.gy);
+    float arUsed = drawArabicWrapped(af, haveVisual ? vis : ayah->arabicText,
+        (float)(rightMargin - starInset), (float)my,
+        (float)(mainW - starInset), arMaxH, (float)S.fs40, (float)S.fs14, t->foreground);
 
     char *translation = (strcmp(state->language, "bn") == 0)
                         ? ayah->translationBn : ayah->translationEn;
-    drawWrappedText(translation,
-                    (Rectangle){(float)mx, (float)(my + S.fs34 + S.gy),
-                                (float)mainW, (float)(sh - FOOTER_H - my - S.fs34 - S.gy - S.fs13 - S.gy)},
-                    S.fs16, t->muted);
+    /* cap measure near 75ch so wide windows stay readable. */
+    int wrapW = mainW;
+    int maxMeasure = (int)(720 * S.factor);
+    if (wrapW > maxMeasure) wrapW = maxMeasure;
+    int trTop = my + (int)arUsed + S.gy;
+    float trH = (float)(sh - FOOTER_H - S.fs13 - S.gy) - trTop;
+    if (trH < 0) trH = 0;
+    drawWrappedTextScroll(translation,
+                    (Rectangle){(float)mx, (float)trTop,
+                                (float)wrapW, trH},
+                    trFont(state), S.fs16, t->muted, 0);
 
     char ref[32];
     snprintf(ref, sizeof(ref), "%d:%d", state->currentSurah, state->currentAyah);
@@ -699,8 +1037,14 @@ static void drawFocusCinematic(AppState *state, Theme *t, int sw, int sh) {
     }
     focusWasActive = state->focusMode;
 
-    /* 1. Render full scene to texture */
-    if (focusTarget.texture.id > 0) {
+    /* 1. Render full scene to texture (cached 1s — backdrop is near-static) */
+    static double lastBlurTime = -10.0;
+    static int lastBlurW = 0, lastBlurH = 0;
+    if (focusTarget.texture.id > 0 &&
+        (GetTime() - lastBlurTime > 1.0 || !focusWasActive ||
+         sw != lastBlurW || sh != lastBlurH)) {
+        lastBlurTime = GetTime();
+        lastBlurW = sw; lastBlurH = sh;
         BeginTextureMode(focusTarget);
             ClearBackground(t->background);
             drawTopBar(state);
@@ -708,8 +1052,10 @@ static void drawFocusCinematic(AppState *state, Theme *t, int sw, int sh) {
             drawFooter(state);
             drawAyahContent(state, t, sw, sh);
         EndTextureMode();
+    }
 
-        /* 2. Box blur: draw texture 9 times with offsets at low alpha */
+    /* 2. Box blur: cached texture drawn 9 times at low alpha, every frame */
+    if (focusTarget.texture.id > 0) {
         float blurRadius = 3.0f;
         float alpha = 1.0f / 9.0f;
         for (int bx = -1; bx <= 1; bx++) {
@@ -760,64 +1106,48 @@ static void drawFocusCinematic(AppState *state, Theme *t, int sw, int sh) {
 
     /* Content (only draw when mostly faded in) */
     if (progress > 0.3f) {
-        Ayah *ayah = findMockAyah(state, state->currentSurah, state->currentAyah);
+        Ayah *ayah = getAyah(state, state->currentSurah, state->currentAyah);
         if (ayah) {
-            float innerPad = scaledRect.x + S.mx * S.factor;
-            float innerW = scaledRect.width - 2 * S.mx * S.factor;
-            float innerTop = scaledRect.y + S.cardPadY * S.factor;
-            float innerBottom = scaledRect.y + scaledRect.height - S.cardPadY * S.factor;
+            /* S.* already scaled — no second multiply. */
+            float innerPad = scaledRect.x + S.mx;
+            float innerW = scaledRect.width - 2 * S.mx;
+            float innerTop = scaledRect.y + S.cardPadY;
+            float innerBottom = scaledRect.y + scaledRect.height - S.cardPadY;
 
-            /* ── Arabic text — fit-to-width, then center ── */
-            char vis[4096];
+            /* ── Arabic text — wrapped block, translation flows below it ── */
+            char vis[8192];
             int haveVisual = reorderArabic(ayah->arabicText, vis, sizeof(vis));
             Font af = arabicFont.texture.id > 0 ? arabicFont : uiFont;
-            float arSize = S.fs42 * S.factor;
-            float arSp = arSize * 0.12f;
-            float arW = haveVisual
-                ? MeasureTextEx(af, vis, arSize, arSp).x
-                : MeasureTextEx(uiFont, ayah->arabicText, arSize, 1).x;
-            float arMin = S.fs14 * S.factor;
-            while (arW > innerW && arSize > arMin) {
-                arSize -= 2 * S.factor;
-                if (arSize < arMin) arSize = arMin;
-                arSp = arSize * 0.12f;
-                arW = haveVisual
-                    ? MeasureTextEx(af, vis, arSize, arSp).x
-                    : MeasureTextEx(uiFont, ayah->arabicText, arSize, 1).x;
-            }
+            float arMaxH = (innerBottom - innerTop) * 0.45f;
             float arY = innerTop + (innerBottom - innerTop) * 0.10f;
-            if (haveVisual)
-                drawArabicVisualCentered(vis,
-                    (Rectangle){innerPad, arY, innerW, arSize * 1.6f},
-                    arSize, t->foreground);
-            else
-                drawArabicTextCentered(ayah->arabicText,
-                    (Rectangle){innerPad, arY, innerW, arSize * 1.6f},
-                    arSize, t->foreground);
+            float arUsed = drawArabicWrapped(af, haveVisual ? vis : ayah->arabicText,
+                innerPad + innerW, arY, innerW, arMaxH,
+                (float)S.fs42, (float)S.fs14, t->foreground);
 
             /* ── Translation — wrapped below the Arabic ── */
             char *translation = (strcmp(state->language, "bn") == 0)
                                 ? ayah->translationBn : ayah->translationEn;
-            float refH = S.fs14 * S.factor;
-            float hintH = S.fs12 * S.factor;
-            float trTop = arY + arSize * 1.6f + S.gy * S.factor;
-            float trBottom = innerBottom - (refH + S.gy * S.factor + hintH + S.gy * S.factor);
-            drawWrappedText(translation,
+            float refH = (float)S.fs14;
+            float hintH = (float)S.fs12;
+            float trTop = arY + arUsed + S.gy;
+            float trBottom = innerBottom - (refH + S.gy + hintH + S.gy);
+            drawWrappedTextScroll(translation,
                 (Rectangle){innerPad, trTop, innerW, trBottom - trTop},
-                S.fs16 * S.factor, t->muted);
+                trFont(state), S.fs16, t->muted, 0);
 
             /* ── Reference + hint (pinned to bottom) ── */
             char ref[128];
-            Surah *s = &state->surahs[state->currentSurah - 1];
-            snprintf(ref, sizeof(ref), "%s: %d", s->name, state->currentAyah);
+            Surah *s = surahByNumber(state, state->currentSurah);
+            if (s) snprintf(ref, sizeof(ref), "%s: %d", s->name, state->currentAyah);
+            else snprintf(ref, sizeof(ref), "%d:%d", state->currentSurah, state->currentAyah);
             float refW = MeasureTextEx(uiFont, ref, refH, 1).x;
-            float refY = innerBottom - (refH + S.gy * S.factor + hintH);
+            float refY = innerBottom - (refH + S.gy + hintH);
             DrawTextEx(uiFont, ref, (Vector2){center.x - refW / 2, refY}, refH, 1, t->accent);
 
             const char *hint = "Press F to exit";
             float hintW = MeasureTextEx(uiFont, hint, hintH, 1).x;
             DrawTextEx(uiFont, hint, (Vector2){center.x - hintW / 2,
-                       refY + refH + S.gy * S.factor}, hintH, 1, t->muted);
+                       refY + refH + S.gy}, hintH, 1, t->muted);
         }
     }
 }
@@ -855,7 +1185,10 @@ void drawBookmarks(AppState *state) {
     int titleY = listY + (S.my - S.fs22) / 2;
     DrawTextEx(uiFont, "Bookmarks", (Vector2){(float)(S.mx), (float)(titleY)}, S.fs22, 1, t->foreground);
     char countStr[32];
-    snprintf(countStr, sizeof(countStr), "%d saved", mockBookmarkCount);
+    /* direct DB read each frame; lists are tiny. */
+    static Bookmark bmRows[256];
+    int bmCount = loadBookmarks(bmRows, 256);
+    snprintf(countStr, sizeof(countStr), "%d saved", bmCount);
     DrawTextEx(uiFont, countStr, (Vector2){(float)(S.mx + S.fs22 + S.gx), (float)(titleY + (S.fs22 - S.fs14) / 2)}, S.fs14, 1, t->muted);
 
     int headerH = S.my + S.fs22 + S.gy/2;
@@ -866,8 +1199,8 @@ void drawBookmarks(AppState *state) {
     listY += S.gy/2;
     listH -= S.gy/2;
 
-    if (mockBookmarkCount == 0) {
-        const char *msg = "No bookmarks yet -- press b while reading to save your place.";
+    if (bmCount == 0) {
+        const char *msg = "No bookmarks yet — press b while reading to save your place.";
         int tw = MeasureTextEx(uiFont, msg, S.fs16, 1).x;
         DrawTextEx(uiFont, msg, (Vector2){(float)((sw - tw) / 2), (float)(listY + listH / 2 - S.fs16/2)}, S.fs16, 1, t->muted);
         return;
@@ -875,18 +1208,20 @@ void drawBookmarks(AppState *state) {
 
     int rowH = S.bookmarkRowH;
     int visible = listH / rowH;
+    /* cursor lives in state (shared with input.c), scroll stays local. */
+    int bmCursor = state->cursorSurah;
     static int bmScrollOff = 0;
-    static int bmCursor = 0;
 
     if (bmCursor < 0) bmCursor = 0;
-    if (bmCursor >= mockBookmarkCount) bmCursor = mockBookmarkCount - 1;
+    if (bmCount > 0 && bmCursor >= bmCount) bmCursor = bmCount - 1;
+    state->cursorSurah = bmCursor; /* write back so Enter/d act on it. */
     if (bmCursor < bmScrollOff) bmScrollOff = bmCursor;
     if (bmCursor >= bmScrollOff + visible) bmScrollOff = bmCursor - visible + 1;
-    if (mockBookmarkCount <= visible) bmScrollOff = 0;
-    else if (bmScrollOff > mockBookmarkCount - visible) bmScrollOff = mockBookmarkCount - visible;
+    if (bmCount <= visible) bmScrollOff = 0;
+    else if (bmScrollOff > bmCount - visible) bmScrollOff = bmCount - visible;
     if (bmScrollOff < 0) bmScrollOff = 0;
 
-    for (int i = bmScrollOff; i < mockBookmarkCount && i < bmScrollOff + visible; i++) {
+    for (int i = bmScrollOff; i < bmCount && i < bmScrollOff + visible; i++) {
         int y = listY + (i - bmScrollOff) * rowH;
         int active = (i == bmCursor);
 
@@ -896,7 +1231,7 @@ void drawBookmarks(AppState *state) {
         }
         DrawLine(S.mx, y + rowH, sw - S.mx, y + rowH, t->border);
 
-        Bookmark *bm = &mockBookmarks[i];
+        Bookmark *bm = &bmRows[i];
 
         char ref[32];
         snprintf(ref, sizeof(ref), "%d:%d", bm->surahNumber, bm->ayahNumber);
@@ -911,20 +1246,10 @@ void drawBookmarks(AppState *state) {
         float rtW = MeasureTextEx(uiFont, relTime, S.fs12, 1).x;
         DrawTextEx(uiFont, relTime, (Vector2){(float)(sw - S.mx - rtW), (float)(y + S.gy/2 + (S.fs16 - S.fs12) / 2)}, S.fs12, 1, t->muted);
 
-        if (bm->surahNumber >= 1 && bm->surahNumber <= 114 && state->surahs) {
-            Surah *s = &state->surahs[bm->surahNumber - 1];
-            if (s->number > 0)
+        if (state->surahs) {
+            Surah *s = surahByNumber(state, bm->surahNumber);
+            if (s && s->number > 0)
                 DrawTextEx(uiFont, s->name, (Vector2){(float)(tagX), (float)(y + S.gy/2 + S.fs16 + S.gy/4)}, S.fs13, 1, t->muted);
-        }
-
-        if (bm->note[0]) {
-            char note[80];
-            strncpy(note, bm->note, sizeof(note) - 1);
-            note[sizeof(note) - 1] = '\0';
-            if ((int)strlen(bm->note) > 75) {
-                note[74] = '.'; note[75] = '.'; note[76] = '.'; note[77] = '\0';
-            }
-            DrawTextEx(uiFont, note, (Vector2){(float)(S.mx), (float)(y + S.gy/2 + S.fs16 + S.gy/4 + S.fs13 + S.gy/4)}, S.fs12, 1, t->muted);
         }
     }
 }
@@ -943,9 +1268,8 @@ void drawSurahOverview(AppState *state) {
     DrawRectangleRoundedLines((Rectangle){(float)cx, (float)cy, (float)cw, (float)ch},
                               0.08f, 8, t->border);
 
-    if (state->currentSurah < 1 || state->currentSurah > 114) return;
-    Surah *s = &state->surahs[state->currentSurah - 1];
-    if (s->number == 0) return;
+    Surah *s = surahByNumber(state, state->currentSurah);
+    if (!s || s->number == 0) return;
 
     drawArabicTextCentered(s->arabicName,
         (Rectangle){(float)cx, (float)(cy + S.cardPadY), (float)cw, (float)S.fs42 + S.gy},
@@ -972,7 +1296,7 @@ void drawSurahOverview(AppState *state) {
                     (float)(cw - 2 * S.mx + S.gx), (float)(ch - (ctxY - cy) - S.fs13 - S.gy*2)},
         S.fs14, t->muted);
 
-    const char *prompt = "Press any key to begin reading";
+    const char *prompt = "Press Enter to begin reading";
     float pw = MeasureTextEx(uiFont, prompt, S.fs13, 1).x;
     DrawTextEx(uiFont, prompt, (Vector2){(float)(cx + (cw - (int)pw) / 2), (float)(cy + ch - S.fs13 - S.gy/2)}, S.fs13, 1, t->muted);
 }
@@ -1003,7 +1327,7 @@ void drawSettings(AppState *state) {
     const char *labels[] = {
         "Vim Motions", "Font Scale", "Screensaver (s)", "Auto Resume",
         "Theme", "Language", "Calc Method", "Latitude",
-        "Trigger Screensaver",
+        "Test Reminder", "Test Prayer Alarm",
     };
     int rowCount = SETTINGS_ROW_COUNT;
     int rowH = (ch - (int)(80 * S.factor)) / rowCount;
@@ -1050,7 +1374,8 @@ void drawSettings(AppState *state) {
                     val = numBuf;
                 }
                 break;
-            case 8: val = "▶ Play"; break;
+            case 8: val = "Play"; break;
+            case 9: val = "Play"; break;
         }
         if (val[0]) {
             float vw = MeasureTextEx(uiFont, val, S.fs14, 1).x;
@@ -1118,6 +1443,12 @@ void drawReadingHub(AppState *state) {
     int tileW = (int)(360 * S.factor);
     int tileH = (int)(240 * S.factor);
     int gap = (int)(40 * S.factor);
+    /* narrow windows shrink tiles instead of clipping. */
+    int maxTileW = (sw - 2 * S.mx - gap) / 2;
+    if (maxTileW < tileW) {
+        tileW = maxTileW < 80 ? 80 : maxTileW;
+        tileH = tileW * 2 / 3;
+    }
     int totalW = 2 * tileW + gap;
     int startX = (sw - totalW) / 2;
     int startY = (sh - tileH) / 2;
@@ -1174,6 +1505,120 @@ void drawReadingHub(AppState *state) {
  * HADITH PAGE — scrollable card list
  * ============================================================ */
 
+/* ── Hadith filter (0=All, 1=Bukhari, 2=Muslim) is a view, not a copy ── */
+static int hadithMatches(AppState *state, int idx) {
+    if (state->hadithFilter <= 0) return 1;
+    const char *want = state->hadithFilter == 1 ? "Bukhari" : "Muslim";
+    return strcmp(state->hadiths[idx].collection, want) == 0;
+}
+
+static int filteredHadithCount(AppState *state) {
+    int n = 0;
+    for (int i = 0; i < state->totalHadiths; i++)
+        if (hadithMatches(state, i)) n++;
+    return n;
+}
+
+static Hadith *filteredHadith(AppState *state, int visibleIdx) {
+    int k = 0;
+    for (int i = 0; i < state->totalHadiths; i++)
+        if (hadithMatches(state, i) && k++ == visibleIdx) return &state->hadiths[i];
+    return NULL;
+}
+
+static int modalScroll = 0;          /* px offset into modal text */
+static int modalTotalH = 0;          /* content height from last frame */
+static const Hadith *modalFor = NULL; /* resets scroll on hadith change */
+static double modalOpenTime = 0;     /* ease-out entrance, mirrors focus modal */
+
+static void drawHadithModal(Theme *t, Hadith *h) {
+    int sw = GetScreenWidth();
+    int sh = GetScreenHeight();
+    DrawRectangle(0, 0, sw, sh, (Color){0, 0, 0, 200});
+
+    int cw = (int)(640 * S.factor), ch = (int)(420 * S.factor);
+    int cx = (sw - cw) / 2, cy = (sh - ch) / 2;
+
+    /* 0.25s ease-out entrance, same language as the focus modal. */
+    float progress = (float)((GetTime() - modalOpenTime) / 0.25);
+    if (progress > 1) progress = 1;
+    float eased = 1.0f - (1.0f - progress) * (1.0f - progress) * (1.0f - progress);
+    float mScale = 0.85f + 0.15f * eased;
+    Vector2 center = {(float)(cx + cw / 2), (float)(cy + ch / 2)};
+    Rectangle card = {
+        center.x - (cw / 2) * mScale, center.y - (ch / 2) * mScale,
+        cw * mScale, ch * mScale
+    };
+    unsigned char oldA = t->surface.a;
+    t->surface.a = (unsigned char)(eased * 255);
+    DrawRectangleRounded(card, 0.06f, 8, t->surface);
+    DrawRectangleRoundedLines(card, 0.06f, 8, t->accent);
+    t->surface.a = oldA;
+    if (progress < 0.3f) return;
+    cx = (int)(card.x); cy = (int)(card.y);
+    cw = (int)card.width; ch = (int)card.height;
+
+    int px = cx + S.cardPadX + S.gx, py = cy + S.cardPadY;
+    int innerW = cw - 2 * (S.cardPadX + S.gx);
+
+    Color badgeColor = t->accent;
+    if (strcmp(h->collection, "Muslim") == 0)
+        badgeColor = (Color){100, 180, 140, 255};
+    float badgeW = MeasureTextEx(uiFont, h->collection, S.fs12, 1).x + (int)(10 * S.factor);
+    DrawRectangleRounded((Rectangle){(float)px, (float)py, badgeW, (float)(S.fs12 + 4)},
+                         0.3f, 4, badgeColor);
+    DrawTextEx(uiFont, h->collection,
+               (Vector2){(float)(px + (int)(5 * S.factor)), (float)(py + 2)},
+               S.fs12, 1, t->background);
+    DrawTextEx(uiFont, h->name,
+               (Vector2){(float)(px + badgeW + S.gx), (float)(py + 2)},
+               S.fs12, 1, t->muted);
+    py += S.fs12 + 4 + S.gy;
+
+    /* scroll state lives here; input.c freezes keys behind the modal. */
+    if (h != modalFor) { modalFor = h; modalScroll = 0; modalTotalH = 0; modalOpenTime = GetTime(); }
+    int tSize = S.fs16;
+    int lineH = tSize + 6;
+    int trTop = py;
+    int trBottom = cy + ch - S.cardPadY - S.fs13 - S.gy;
+    int viewH = trBottom - trTop;
+    if (viewH < lineH) viewH = lineH;
+    float wheel = GetMouseWheelMove();
+    if (wheel != 0) modalScroll -= (int)(wheel * 40);
+    /* scroll keys repeat while held, like all nav keys. */
+    if (navRepeat(KEY_J) || navRepeat(KEY_DOWN)) modalScroll += lineH;
+    if (navRepeat(KEY_K) || navRepeat(KEY_UP)) modalScroll -= lineH;
+    if (navRepeat(KEY_PAGE_DOWN)) modalScroll += viewH;
+    if (navRepeat(KEY_PAGE_UP)) modalScroll -= viewH;
+    if (modalScroll < 0) modalScroll = 0;
+    if (modalScroll > modalTotalH - viewH)
+        modalScroll = modalTotalH - viewH > 0 ? modalTotalH - viewH : 0;
+
+    Rectangle tr = {(float)px, (float)trTop, (float)(innerW - S.gx), (float)viewH};
+    modalTotalH = drawWrappedTextScroll(h->text ? h->text : "", tr, uiFont, tSize, t->foreground, modalScroll);
+
+    /* Scrollbar when content overflows */
+    if (modalTotalH > viewH) {
+        float trackX = (float)(px + innerW - (int)(4 * S.factor));
+        DrawRectangleRounded((Rectangle){trackX, (float)trTop, (float)(4 * S.factor), (float)viewH},
+                             0.5f, 4, Fade(t->border, 0.5f));
+        float thumbH = (float)viewH * (float)viewH / (float)modalTotalH;
+        if (thumbH < 12) thumbH = 12;
+        float thumbY = (float)trTop + ((float)viewH - thumbH) *
+                       (float)modalScroll / (float)(modalTotalH - viewH);
+        DrawRectangleRounded((Rectangle){trackX, thumbY, (float)(4 * S.factor), thumbH},
+                             0.5f, 4, t->accent);
+    }
+
+    if (h->narrator[0])
+        DrawTextEx(uiFont, h->narrator, (Vector2){(float)(px), (float)(cy + ch - S.cardPadY - S.fs13)},
+                   S.fs13, 1, t->muted);
+    const char *prompt = "Esc to close";
+    float pw = MeasureTextEx(uiFont, prompt, S.fs13, 1).x;
+    DrawTextEx(uiFont, prompt, (Vector2){(float)(cx + cw - S.cardPadX - S.gx - pw),
+               (float)(cy + ch - S.cardPadY - S.fs13)}, S.fs13, 1, t->muted);
+}
+
 void drawHadithPage(AppState *state) {
     Theme *t = getTheme(state->currentTheme);
     int sw = GetScreenWidth();
@@ -1189,8 +1634,27 @@ void drawHadithPage(AppState *state) {
     int titleY = listY + (S.my - S.fs22) / 2;
     DrawTextEx(uiFont, "Major Hadiths", (Vector2){(float)(S.mx), (float)(titleY)}, S.fs22, 1, t->foreground);
     char countStr[32];
-    snprintf(countStr, sizeof(countStr), "%d collections", state->totalHadiths);
+    int fTotal = (state->hadiths && state->totalHadiths > 0) ? filteredHadithCount(state) : 0;
+    snprintf(countStr, sizeof(countStr), "%d shown", fTotal);
     DrawTextEx(uiFont, countStr, (Vector2){(float)(S.mx + (int)(160 * S.factor)), (float)(titleY + (S.fs22 - S.fs14) / 2)}, S.fs14, 1, t->muted);
+
+    /* Source filter tabs (upper section) — clickable */
+    const char *tabs[] = { "All", "Bukhari", "Muslim" };
+    float tabX = (float)(sw - S.mx);
+    for (int i = 2; i >= 0; i--) {
+        float tw = MeasureTextEx(uiFont, tabs[i], S.fs13, 1).x + (int)(16 * S.factor);
+        tabX -= tw + S.gx / 2;
+        Rectangle tabR = {tabX, (float)titleY, tw, (float)(S.fs13 + 8)};
+        int active = (state->hadithFilter == i);
+        DrawRectangleRounded(tabR, 0.3f, 4, active ? t->accent : t->surface);
+        DrawTextEx(uiFont, tabs[i], (Vector2){tabX + (int)(8 * S.factor), (float)(titleY + 4)},
+                   S.fs13, 1, active ? t->background : t->muted);
+        if (!active && CheckCollisionPointRec(GetMousePosition(), tabR) &&
+            IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            state->hadithFilter = i;
+            state->hadithCursor = 0;
+        }
+    }
 
     int headerH = S.my + S.fs22 + S.gy/2;
     listY += headerH;
@@ -1201,7 +1665,7 @@ void drawHadithPage(AppState *state) {
     listH -= S.gy/2;
 
     if (state->totalHadiths <= 0 || !state->hadiths) {
-        const char *msg = "No hadiths loaded.";
+        const char *msg = "No hadiths loaded — restart with internet to fetch.";
         int tw = MeasureTextEx(uiFont, msg, S.fs16, 1).x;
         DrawTextEx(uiFont, msg, (Vector2){(float)((sw - tw) / 2), (float)(listY + listH / 2 - S.fs16/2)}, S.fs16, 1, t->muted);
         return;
@@ -1209,12 +1673,12 @@ void drawHadithPage(AppState *state) {
 
     int rowH = (int)(80 * S.factor);
     int visible = listH / rowH;
-    int total = state->totalHadiths;
+    int total = fTotal;
     int cursor = state->hadithCursor;
 
-    /* Clamp cursor */
+    /* Clamp cursor into the filtered view */
     if (cursor < 0) { state->hadithCursor = 0; cursor = 0; }
-    if (cursor >= total) { state->hadithCursor = total - 1; cursor = total - 1; }
+    if (total > 0 && cursor >= total) { state->hadithCursor = total - 1; cursor = total - 1; }
 
     /* Scroll offset */
     int scrollOff = 0;
@@ -1228,17 +1692,26 @@ void drawHadithPage(AppState *state) {
         int y = listY + (i - scrollOff) * rowH;
         int active = (i == cursor);
 
+        Rectangle rowR = {(float)S.mx, (float)y,
+                          (float)(sw - 2 * S.mx), (float)(rowH - 4)};
+        /* click opens the modal; geometry already here. */
+        if (CheckCollisionPointRec(GetMousePosition(), rowR) &&
+            IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            state->hadithCursor = i;
+            state->showHadithModal = 1;
+            active = 1;
+        }
+
         /* Card background */
         if (active)
-            DrawRectangleRounded((Rectangle){(float)S.mx, (float)y,
-                                            (float)(sw - 2 * S.mx), (float)(rowH - 4)},
-                                 0.04f, 6, t->surface);
+            DrawRectangleRounded(rowR, 0.04f, 6, t->surface);
 
         /* Accent bar on active row */
         if (active)
             DrawRectangle(S.mx, y + (int)(6 * S.factor), (int)(3 * S.factor), rowH - (int)(16 * S.factor), t->accent);
 
-        Hadith *h = &state->hadiths[i];
+        Hadith *h = filteredHadith(state, i);
+        if (!h) continue;
 
         /* Collection badge */
         Color badgeColor = t->accent;
@@ -1252,11 +1725,20 @@ void drawHadithPage(AppState *state) {
                    (Vector2){(float)(S.mx + S.gx + 5 * S.factor), (float)(y + S.gy/2 + 2)},
                    S.fs12, 1, t->background);
 
-        /* Narrator */
+        /* Narrator — truncated to row width */
         float narratorX = S.mx + S.gx + badgeW + S.gx;
-        DrawTextEx(uiFont, h->narrator,
-                   (Vector2){narratorX, (float)(y + S.gy/2 + 2)},
-                   S.fs12, 1, t->muted);
+        {
+            float maxW = (float)(sw - S.mx - S.gx) - narratorX;
+            char narr[128];
+            snprintf(narr, sizeof(narr), "%s", h->narrator);
+            while (narr[0] && MeasureTextEx(uiFont, narr, S.fs12, 1).x > maxW && strlen(narr) > 4) {
+                narr[strlen(narr) - 4] = '\0';
+                strcat(narr, "...");
+            }
+            DrawTextEx(uiFont, narr,
+                       (Vector2){narratorX, (float)(y + S.gy/2 + 2)},
+                       S.fs12, 1, t->muted);
+        }
 
         /* Hadith text — wrapped */
         int textY = y + S.gy/2 + (S.fs12 + 4) + S.gy/2;
@@ -1265,6 +1747,12 @@ void drawHadithPage(AppState *state) {
                         (float)(sw - 2 * S.mx - 2 * S.gx), (float)(rowH - textY + y - S.gy/2)},
             S.fs14, active ? t->foreground : t->muted);
     }
+
+    if (state->showHadithModal) {
+        Hadith *mh = filteredHadith(state, state->hadithCursor);
+        if (mh) drawHadithModal(t, mh);
+        else state->showHadithModal = 0;
+    }
 }
 
 void drawTopBar(AppState *state) {
@@ -1272,9 +1760,12 @@ void drawTopBar(AppState *state) {
     int sw = GetScreenWidth();
     DrawRectangle(0, 0, sw, TOPBAR_H, t->surface);
     DrawLine(0, TOPBAR_H, sw, TOPBAR_H, t->border);
-    DrawTextEx(uiFont, "Ayatika", (Vector2){(float)(S.mx - S.gx), (float)((TOPBAR_H - S.fs26)/2 + S.fs26/4)}, S.fs26, 1, t->accent);
+    float titleX = (float)(S.mx - S.gx);
+    float titleY = (float)((TOPBAR_H - S.fs26) / 2 + S.fs26 / 4);
+    DrawTextEx(uiFont, "Ayatika", (Vector2){titleX, titleY}, S.fs26, 1, t->accent);
     char buf[128];
-    snprintf(buf, sizeof(buf), "Next: %s", state->prayer.dhuhrStr[0] ? state->prayer.dhuhrStr : "--:--");
+    snprintf(buf, sizeof(buf), "Next: %s %s", getNextPrayerName(&state->prayer),
+             formatCountdown(getNextPrayerTime(&state->prayer)));
     DrawTextEx(uiFont, buf, (Vector2){(float)(sw - S.topbarPrayerXOffset), (float)((TOPBAR_H - S.fs16)/2 + S.fs16/4)}, S.fs16, 1, t->muted);
 }
 
@@ -1291,8 +1782,20 @@ void drawSidebar(AppState *state) {
     if (state->cursorSurah >= scrollOff + visible) scrollOff = state->cursorSurah - visible + 1;
     if (scrollOff > total - visible) scrollOff = total - visible;
     if (scrollOff < 0) scrollOff = 0;
-    for (int i = scrollOff; i < total && i < scrollOff + visible; i++) {
-        int y = listY + (i - scrollOff) * rowH;
+    /* viewport glides toward scrollOff (exponential ease-out);
+       selection itself stays exact — only the scroll animates. */
+    static float sbPos = 0;
+    {
+        float k = GetFrameTime() * 10.0f;
+        if (k > 1) k = 1;
+        sbPos += ((float)scrollOff - sbPos) * k;
+        if (fabsf((float)scrollOff - sbPos) < 0.02f) sbPos = (float)scrollOff;
+    }
+    int startRow = (int)floorf(sbPos);
+    if (startRow < 0) { startRow = 0; sbPos = 0; }
+    float yOff = (sbPos - (float)startRow) * (float)rowH;
+    for (int i = startRow; i < total && i < startRow + visible + 1; i++) {
+        int y = listY + (int)((i - startRow) * rowH - yOff);
         int active = (i == state->cursorSurah);
         if (active) DrawRectangle(0, y, SIDEBAR_W, rowH, t->accent);
         DrawLine(0, y + rowH, SIDEBAR_W, y + rowH, t->border);
@@ -1305,9 +1808,10 @@ void drawSidebar(AppState *state) {
         snprintf(cnt, sizeof(cnt), "%d ayahs", s->ayahCount);
         DrawTextEx(uiFont, cnt, (Vector2){(float)(S.cardPadX + S.fs14 + S.gx), (float)(y + 24)}, S.fs12, 1, active ? t->background : t->muted);
         int dotX = SIDEBAR_W - S.gx, dotY = y + rowH/2;
-        Color dc = active ? t->background :
-                   (strcmp(s->revelationType, "Meccan") == 0 ? t->accent : t->border);
-        DrawCircle(dotX, dotY, S.dotRadius, dc);
+        /* Meccan = filled disc, Medinan = hollow ring — shape backs up color. */
+        if (active) DrawCircle(dotX, dotY, S.dotRadius, t->background);
+        else if (strcmp(s->revelationType, "Meccan") == 0) DrawCircle(dotX, dotY, S.dotRadius, t->accent);
+        else DrawCircleLines(dotX, dotY, (float)S.dotRadius, t->border);
     }
 }
 
@@ -1317,11 +1821,42 @@ void drawFooter(AppState *state) {
     int sh = GetScreenHeight();
     DrawRectangle(0, sh - FOOTER_H, sw, FOOTER_H, t->surface);
     DrawLine(0, sh - FOOTER_H, sw, sh - FOOTER_H, t->border);
-    DrawTextEx(uiFont, state->statusMsg, (Vector2){(float)(S.mx - S.gx), (float)(sh - FOOTER_H + (FOOTER_H - S.fs14)/2)}, S.fs14, 1, t->muted);
-    const char *helpRight = state->vimMotions
-        ? "F1 = help   j/k/h/l = navigate   Enter = open   / = search   m = bookmarks"
-        : "F1 = help   arrows = navigate   Enter = open   / = search   m = bookmarks";
-    DrawTextEx(uiFont, helpRight, (Vector2){(float)(sw - (int)(520 * S.factor)), (float)(sh - FOOTER_H + (FOOTER_H - S.fs13)/2)}, S.fs13, 1, t->muted);
+    /* list screen gets jump hints; everywhere else names the finder. */
+    const char *helpRight;
+    if (state->currentScreen == SCREEN_SURAH_LIST)
+        helpRight = "0-9 = jump   type = palette   Ctrl+d/u = page   Enter = open   Esc = clear";
+    else if (state->currentScreen == SCREEN_BOOKMARKS)
+        helpRight = "Enter = open   d = delete   Esc = back";
+    else if (state->vimMotions)
+        helpRight = "F1 = help   j/k/h/l = navigate   o = finder   g = dashboard   Enter = open   / = search   m = bookmarks";
+    else
+        helpRight = "F1 = help   arrows = navigate   o = finder   g = dashboard   Enter = open   / = search   m = bookmarks";
+    float hintW = MeasureTextEx(uiFont, helpRight, S.fs13, 1).x;
+    /* narrow windows fall back to the short hint so status keeps room. */
+    if (hintW > sw * 0.62f) {
+        if (state->currentScreen == SCREEN_SURAH_LIST)
+            helpRight = "0-9 jump · type find · Enter open";
+        else if (state->currentScreen == SCREEN_BOOKMARKS)
+            helpRight = "Enter open · d delete";
+        else if (state->vimMotions)
+            helpRight = "F1 help · j/k move · o finder · g home";
+        else
+            helpRight = "F1 help · arrows · o finder · g home";
+        hintW = MeasureTextEx(uiFont, helpRight, S.fs13, 1).x;
+    }
+    DrawTextEx(uiFont, helpRight, (Vector2){(float)(sw - S.mx + S.gx - hintW), (float)(sh - FOOTER_H + (FOOTER_H - S.fs13)/2)}, S.fs13, 1, t->muted);
+    /* status truncated to whatever space the hint leaves. */
+    {
+        float maxW = (float)sw - (S.mx - S.gx) - hintW - 3 * S.gx;
+        char msg[256];
+        snprintf(msg, sizeof(msg), "%s", state->statusMsg);
+        while (msg[0] && MeasureTextEx(uiFont, msg, S.fs14, 1).x > maxW && strlen(msg) > 4) {
+            msg[strlen(msg) - 4] = '\0';
+            strcat(msg, "...");
+        }
+        if (maxW > 40)
+            DrawTextEx(uiFont, msg, (Vector2){(float)(S.mx - S.gx), (float)(sh - FOOTER_H + (FOOTER_H - S.fs14)/2)}, S.fs14, 1, state->statusTone ? t->accent : t->muted);
+    }
 }
 
 static void nextPrayerInfo(AppState *state, char *name, int nameSz, char *countdown, int cdSz, float *progress) {
@@ -1372,45 +1907,68 @@ void drawHelpOverlay(AppState *state) {
         {"j / k",     "Move cursor down / up"},
         {"h / l",     "Dashboard: left / right"},
         {"G / End",   "Go to top / bottom"},
+        {"Ctrl+d / u","Half page down / up"},
+        {"o",         "Finder, surah jump"},
+        {"g",         "Go to dashboard"},
+        {"0-9 / type","Jump to number / name (Surah list)"},
         {"Enter",     "Open selected item"},
         {"Esc",       "Go back"},
-        {"/",         "Open search"},
+        {"/",         "Finder, ayah search"},
         {"b",         "Bookmark current ayah (Reader)"},
         {"m",         "Open bookmarks"},
+        {"d",         "Delete bookmark (Bookmarks)"},
         {"f",         "Toggle focus mode (Reader)"},
         {"t",         "Cycle themes"},
         {"s",         "Open settings"},
         {"Home",      "Go to dashboard"},
-        {"F1",        "Toggle this help"},
+        {"Tab",       "Finder tab / hadith filter"},
+        {"F1",        "Open this help / Esc closes"},
     };
     static const char *arrowKeys[][2] = {
         {"Up / Down",    "Move cursor up / down"},
         {"Left / Right", "Navigate / scroll"},
         {"PgUp / PgDn",  "Go to top / bottom"},
+        {"Ctrl+d / u",   "Half page down / up"},
+        {"o",            "Finder, surah jump"},
+        {"g",            "Go to dashboard"},
+        {"0-9 / type",   "Jump to number / name (Surah list)"},
         {"Enter",        "Open selected item"},
         {"Esc",          "Go back"},
-        {"/",            "Open search"},
+        {"/",            "Finder, ayah search"},
         {"b",            "Bookmark current ayah (Reader)"},
         {"m",            "Open bookmarks"},
+        {"d",            "Delete bookmark (Bookmarks)"},
         {"f",            "Toggle focus mode (Reader)"},
         {"t",            "Cycle themes"},
         {"s",            "Open settings"},
-        {"Home",         "Go to dashboard"},
-        {"F1",           "Toggle this help"},
+        {"g",            "Go to dashboard"},
+        {"Tab",          "Filter hadith source (Hadith)"},
+        {"F1",           "Open this help / Esc closes"},
     };
-    const char *helpClose = "Press F1 to close";
+    const char *helpClose = "Press Esc to close";
+
+    /* fit rows into the card whatever the table size. */
+    int helpRows = state->vimMotions ? (int)(sizeof(vimKeys) / sizeof(vimKeys[0]))
+                                     : (int)(sizeof(arrowKeys) / sizeof(arrowKeys[0]));
+    int helpStep = (int)(28 * S.factor);
+    if (helpRows > 1) {
+        int fitStep = (ch - (int)(58 * S.factor) - (int)(30 * S.factor)) / (helpRows - 1);
+        if (fitStep < helpStep) helpStep = fitStep;
+        int minStep = (int)(16 * S.factor);
+        if (helpStep < minStep) helpStep = minStep;
+    }
 
     if (state->vimMotions) {
         int vrows = (int)(sizeof(vimKeys) / sizeof(vimKeys[0]));
         for (int i = 0; i < vrows; i++) {
-            int y = cy + (int)(58 * S.factor) + i * (int)(30 * S.factor);
+            int y = cy + (int)(58 * S.factor) + i * helpStep;
             DrawTextEx(uiFont, vimKeys[i][0], (Vector2){(float)(cx + (int)(24 * S.factor)), (float)(y)}, S.fs14, 1, t->accent);
             DrawTextEx(uiFont, vimKeys[i][1], (Vector2){(float)(cx + (int)(150 * S.factor)), (float)(y)}, S.fs14, 1, t->foreground);
         }
     } else {
         int arows = (int)(sizeof(arrowKeys) / sizeof(arrowKeys[0]));
         for (int i = 0; i < arows; i++) {
-            int y = cy + (int)(58 * S.factor) + i * (int)(30 * S.factor);
+            int y = cy + (int)(58 * S.factor) + i * helpStep;
             DrawTextEx(uiFont, arrowKeys[i][0], (Vector2){(float)(cx + (int)(24 * S.factor)), (float)(y)}, S.fs14, 1, t->accent);
             DrawTextEx(uiFont, arrowKeys[i][1], (Vector2){(float)(cx + (int)(150 * S.factor)), (float)(y)}, S.fs14, 1, t->foreground);
         }
@@ -1429,7 +1987,7 @@ void drawBookmarkPopup(AppState *state) {
     int sw = GetScreenWidth();
     float alpha = elapsed < 1.5 ? 1.0f : 1.0f - (float)((elapsed - 1.5) / 0.5);
 
-    const char *msg = "Bookmark saved";
+    const char *msg = bookmarkPopupMsg;
     int tw = MeasureTextEx(uiFont, msg, S.fs16, 1).x;
     int pw = tw + 40, ph = S.fs16 + 20;
     int px = (sw - pw) / 2, py = TOPBAR_H + S.gx/2;
@@ -1443,16 +2001,16 @@ void drawBookmarkPopup(AppState *state) {
 }
 
 static int reorderArabic(const char *text, char *visualOut, int outSize) {
-    FriBidiChar logical[2048];
+    FriBidiChar logical[4096];
     FriBidiStrIndex len = fribidi_charset_to_unicode(
         FRIBIDI_CHAR_SET_UTF8, text, strlen(text), logical);
     if (len <= 0) { visualOut[0] = '\0'; return 0; }
-    if (len >= 2048) len = 2047;
+    if (len >= 4096) len = 4095;
 
-    FriBidiChar visual[2048];
+    FriBidiChar visual[4096];
     FriBidiParType baseDir = FRIBIDI_PAR_RTL;
-    FriBidiLevel levels[2048];
-    FriBidiStrIndex map[2048];
+    FriBidiLevel levels[4096];
+    FriBidiStrIndex map[4096];
     FriBidiLevel maxLevel = fribidi_log2vis(
         logical, len, &baseDir, visual, map, NULL, levels);
     (void)maxLevel; (void)map;
@@ -1485,7 +2043,7 @@ static int reorderArabic(const char *text, char *visualOut, int outSize) {
 }
 
 void drawArabicTextCentered(const char *text, Rectangle bounds, float size, Color color) {
-    char visual[4096];
+    char visual[8192];
     const char *src = reorderArabic(text, visual, sizeof(visual)) ? visual : text;
     drawArabicVisualCentered(src, bounds, size, color);
 }
@@ -1493,7 +2051,9 @@ void drawArabicTextCentered(const char *text, Rectangle bounds, float size, Colo
 void drawArabicVisualCentered(const char *visualText, Rectangle bounds, float size, Color color) {
     Font f = arabicFont.texture.id > 0 ? arabicFont : uiFont;
     float sp = size * 0.12f;
-    float tw = MeasureTextEx(f, visualText, size, sp).x;
+    float tw = measureShaped(f, visualText, size, sp);
     Vector2 pos = {bounds.x + (bounds.width - tw) / 2, bounds.y};
-    DrawTextEx(f, visualText, pos, size, sp, color);
+    drawShaped(f, visualText, pos, size, sp, color);
 }
+
+

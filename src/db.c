@@ -1,5 +1,5 @@
 /* ============================================================
- * db.c — SQLite bookmark, note, and config storage
+ * db.c — SQLite bookmark and config storage
  * Owned by: Backend Engineer
  *
  * Responsibilities:
@@ -21,16 +21,13 @@
 #endif
 #include <unistd.h>
 #include <sqlite3.h>
-/* quran.h includes <raylib.h>, which is not available when this module
-   is compiled in isolation. No struct here uses raylib types, so we
-   short-circuit raylib.h via its include guard (same pattern as quran.c). */
-#define RAYLIB_H
-#include "db.h"
+/* quran.h is raylib-free, no include-guard hack needed. */
+#include "quran.h"
 
 static sqlite3 *db = NULL;
 
 static void ensureDataDir(void) {
-    // ponytail: swallow EEXIST only, stdlib mkdir — no extra util lib
+    // swallow EEXIST only, stdlib mkdir — no extra util lib
 #ifdef _WIN32
     if (_mkdir("data") != 0 && errno != EEXIST) {}
 #else
@@ -49,11 +46,10 @@ int initDatabase(void) {
         "  surah_id  INTEGER NOT NULL,"
         "  ayah_id   INTEGER NOT NULL,"
         "  tag       TEXT    DEFAULT '',"
-        "  note      TEXT    DEFAULT '',"
         "  timestamp INTEGER NOT NULL"
         ");";
     if (sqlite3_exec(db, sql, NULL, NULL, NULL) == SQLITE_OK) return 1;
-    // ponytail: corrupted DB — one retry: close+delete+reopen, else give up
+    // corrupted DB — one retry: close+delete+reopen, else give up
     sqlite3_close(db);
     db = NULL;
     unlink("data/almaktaba.db");
@@ -71,15 +67,14 @@ int saveBookmark(Bookmark *bm) {
 
     sqlite3_stmt *stmt = NULL;
     const char *sql =
-        "INSERT INTO bookmarks (surah_id, ayah_id, tag, note, timestamp)"
-        " VALUES (?, ?, ?, ?, ?);";
+        "INSERT INTO bookmarks (surah_id, ayah_id, tag, timestamp)"
+        " VALUES (?, ?, ?, ?);";
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) return 0;
 
     sqlite3_bind_int (stmt, 1, bm->surahNumber);
     sqlite3_bind_int (stmt, 2, bm->ayahNumber);
     sqlite3_bind_text(stmt, 3, bm->tag,  -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 4, bm->note, -1, SQLITE_STATIC);
-    sqlite3_bind_int (stmt, 5, (int)time(NULL));
+    sqlite3_bind_int (stmt, 4, (int)time(NULL));
 
     int ok = sqlite3_step(stmt) == SQLITE_DONE;
     sqlite3_finalize(stmt);
@@ -91,8 +86,8 @@ int loadBookmarks(Bookmark *out, int maxCount) {
 
     sqlite3_stmt *stmt = NULL;
     const char *sql =
-        "SELECT id, surah_id, ayah_id, tag, note, timestamp"
-        " FROM bookmarks ORDER BY timestamp DESC;";
+        "SELECT id, surah_id, ayah_id, tag, timestamp"
+        " FROM bookmarks ORDER BY timestamp DESC, id DESC;";
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) return 0;
 
     int n = 0;
@@ -102,12 +97,9 @@ int loadBookmarks(Bookmark *out, int maxCount) {
         b->surahNumber = sqlite3_column_int(stmt, 1);
         b->ayahNumber  = sqlite3_column_int(stmt, 2);
         const char *tag  = (const char *)sqlite3_column_text(stmt, 3);
-        const char *note = (const char *)sqlite3_column_text(stmt, 4);
         strncpy(b->tag,  tag  ? tag  : "", sizeof(b->tag)  - 1);
-        strncpy(b->note, note ? note : "", sizeof(b->note) - 1);
         b->tag[sizeof(b->tag) - 1]   = '\0';
-        b->note[sizeof(b->note) - 1] = '\0';
-        b->timestamp = (long)sqlite3_column_int(stmt, 5);
+        b->timestamp = (long)sqlite3_column_int(stmt, 4);
         n++;
     }
     sqlite3_finalize(stmt);
@@ -148,3 +140,4 @@ int bookmarkExists(int surahNum, int ayahNum) {
 void closeDatabase(void) {
     if (db) { sqlite3_close(db); db = NULL; }
 }
+

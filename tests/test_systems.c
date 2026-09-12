@@ -1,17 +1,14 @@
 /* ============================================================
  * test_systems.c — Phase 8 integration harness.
  * Wires audio, screensaver, and search together in one window,
- * mirroring how the Frontend's main.c will call them at full
+ * mirroring how the Frontend's main.c calls them at full
  * integration (see ARCHITECTURE.md "Integration Dependency Order").
  *
  * Compile + run:
  *   make test              (builds + runs in --auto mode)
- *   gcc -std=c11 -Wall -Wextra -Isrc -Ilib src/audio.c \
- *       src/screensaver.c src/search.c src/mock_data.c \
- *       test_systems.c -lraylib -lm -o test_systems
  *
  * Modes:
- *   interactive (no args) — 1=search, 2=screensaver, 3=dashboard,
+ *   interactive (no args) — 1=finder, 2=screensaver, 3=dashboard,
  *     C=click, S=switch, N=nature, A=azan, ESC to quit.
  *   --auto — scripted run of the same code paths with PASS/FAIL
  *     checks; used by `make test`. Exits 1 if any check fails.
@@ -26,7 +23,9 @@
 #include "audio.h"
 #include "screensaver.h"
 #include "search.h"
-#include "mock_data.h"
+#include "test_data.h"
+#include "theme.h"
+#include "ui.h"
 
 static int failures = 0;
 
@@ -43,90 +42,100 @@ static void goToScreen(AppState *state, AppScreen screen) {
     state->currentScreen = screen;
 }
 
+/* Finder entry + query sync, mirroring input.c. */
+static void openFinderAyah(AppState *state) {
+    state->showGoToPalette = 1;
+    state->paletteMode = 1;
+    state->paletteSelection = 0;
+}
+
 static void setQuery(AppState *state, const char *q) {
-    strncpy(state->searchQuery, q, sizeof(state->searchQuery) - 1);
-    state->searchQuery[sizeof(state->searchQuery) - 1] = '\0';
+    snprintf(state->paletteQuery, sizeof(state->paletteQuery), "%s", q);
+    snprintf(state->searchQuery, sizeof(state->searchQuery), "%s", q);
+    runSearch(state, state->searchResults, &state->searchResultCount);
 }
 
 /* One update/draw frame, exactly as the real game loop will do:
-   updateAudio() every frame, then dispatch on currentScreen. */
-static void drawFrame(AppState *state, SearchResult *results, int resultCount) {
+   updateAudio() every frame, then the real drawCurrentScreen. */
+static void drawFrame(AppState *state) {
     updateAudio(state);
     BeginDrawing();
-    switch (state->currentScreen) {
-        case SCREEN_SEARCH:
-            drawSearch(state, results, resultCount);
-            break;
-        case SCREEN_SCREENSAVER:
-            drawScreensaver(state);   /* draws the cat internally */
-            break;
-        default:
-            ClearBackground(BLACK);
-            DrawText("Systems Test - 1=search 2=screensaver 3=dashboard",
-                     20, 20, 18, WHITE);
-            DrawText("Audio: C=click S=switch N=nature A=azan", 20, 50, 16, GRAY);
-            break;
+    if (state->showGoToPalette || state->currentScreen == SCREEN_SCREENSAVER)
+        drawCurrentScreen(state);   /* screen + Finder overlay / screensaver */
+    else {
+        ClearBackground(BLACK);
+        DrawText("Systems Test - 1=finder 2=screensaver 3=dashboard",
+                 20, 20, 18, WHITE);
+        DrawText("Audio: C=click S=switch N=nature A=azan", 20, 50, 16, GRAY);
     }
     EndDrawing();
 }
 
 /* Scripted integration sequence for `make test`. */
-static int runAuto(AppState *state, SearchResult *results, int *resultCount) {
+static int runAuto(AppState *state) {
     int haveAssets = FileExists("assets/azan.mp3");
     int haveCat    = FileExists("assets/cat.png");
 
-    /* ── Search against the full mock dataset ── */
-    goToScreen(state, SCREEN_SEARCH);
+    /* ── Finder ayah search against the mock dataset ── */
+    goToScreen(state, SCREEN_DASHBOARD);
+    openFinderAyah(state);
     setQuery(state, "mercy");
-    runSearch(state, results, resultCount);
-    check("search: 'mercy' returns results", *resultCount > 0);
-    check("search: top 'mercy' score > 0", *resultCount > 0 && results[0].score > 0);
+    check("finder: 'mercy' returns results", state->searchResultCount > 0);
+    check("finder: top 'mercy' score > 0",
+          state->searchResultCount > 0 && state->searchResults[0].score > 0);
 
     setQuery(state, "Al-Fatiha");
-    runSearch(state, results, resultCount);
-    check("search: 'Al-Fatiha' returns boosted surah-1 match",
-          *resultCount > 0 && results[0].surahNumber == 1 && results[0].score >= 500);
-    for (int i = 0; i < 5; i++) drawFrame(state, results, *resultCount);
+    check("finder: 'Al-Fatiha' returns boosted surah-1 match",
+          state->searchResultCount > 0 && state->searchResults[0].surahNumber == 1
+                                       && state->searchResults[0].score >= 500);
+    for (int i = 0; i < 5; i++) drawFrame(state);
+    state->showGoToPalette = 0;
 
-    /* ── Screensaver: Azan fires exactly once per session ── */
+    /* ── Screensaver draws silent; the alarm owns the Azan ── */
     goToScreen(state, SCREEN_SCREENSAVER);
-    drawFrame(state, results, *resultCount);
+    drawFrame(state);
     WaitTime(0.4);
-    if (haveAssets)
-        check("screensaver: azan plays after first draw", isAzanPlaying() == 1);
-    else
-        check("screensaver: azan no-op when asset missing", isAzanPlaying() == 0);
+    check("screensaver: idle draws silent", isAzanPlaying() == 0);
 
     for (int i = 0; i < 60; i++) {
-        drawFrame(state, results, *resultCount);
+        drawFrame(state);
         WaitTime(1.0 / 60.0);
+    }
+    firePrayerAlarm(state);
+    WaitTime(0.4);
+    if (haveAssets) {
+        check("alarm: enters screensaver", state->currentScreen == SCREEN_SCREENSAVER);
+        check("alarm: azan plays", isAzanPlaying() == 1);
+    } else {
+        check("alarm: no-op when asset missing", isAzanPlaying() == 0);
     }
     stopAzan();
     WaitTime(0.1);
-    drawFrame(state, results, *resultCount);
-    drawFrame(state, results, *resultCount);
-    WaitTime(0.1);
-    check("screensaver: azan not replayed on later draws", isAzanPlaying() == 0);
+    check("alarm: azan stops cleanly", isAzanPlaying() == 0);
 
     if (haveCat)
         check("screensaver: cat animation advances", getCatCurrentFrame() > 0);
     else
         check("screensaver: cat no-op when asset missing", getCatCurrentFrame() == 0);
 
-    /* ── Leave + re-enter: reset allows the Azan to fire again ── */
+    /* ── Leave + re-enter stays silent; alarm re-fires on demand ── */
     goToScreen(state, SCREEN_DASHBOARD);
-    drawFrame(state, results, *resultCount);
+    drawFrame(state);
     goToScreen(state, SCREEN_SCREENSAVER);
-    drawFrame(state, results, *resultCount);
+    drawFrame(state);
+    WaitTime(0.4);
+    check("screensaver: re-entry stays silent", isAzanPlaying() == 0);
+    firePrayerAlarm(state);
     WaitTime(0.4);
     if (haveAssets)
-        check("screensaver: azan plays again after reset", isAzanPlaying() == 1);
+        check("alarm: plays again on demand", isAzanPlaying() == 1);
     else
-        check("screensaver: reset keeps no-op when asset missing", isAzanPlaying() == 0);
+        check("alarm: still no-op when asset missing", isAzanPlaying() == 0);
+    stopAzan();
 
     /* ── Dashboard + audio keys ── */
     goToScreen(state, SCREEN_DASHBOARD);
-    drawFrame(state, results, *resultCount);
+    drawFrame(state);
     check("dashboard draws without crash", 1);
 
     playClickSfx();
@@ -150,21 +159,21 @@ static int runAuto(AppState *state, SearchResult *results, int *resultCount) {
     return failures;
 }
 
-static int runInteractive(AppState *state, SearchResult *results, int *resultCount) {
+static int runInteractive(AppState *state) {
     state->lastInputTime = GetTime();
 
     while (!WindowShouldClose()) {
         if (IsKeyPressed(KEY_SPACE) || GetMouseDelta().x != 0.0f)
             state->lastInputTime = GetTime();
 
-        if (IsKeyPressed(KEY_ONE))   goToScreen(state, SCREEN_SEARCH);
-        if (IsKeyPressed(KEY_TWO))   goToScreen(state, SCREEN_SCREENSAVER);
-        if (IsKeyPressed(KEY_THREE)) goToScreen(state, SCREEN_DASHBOARD);
+        if (IsKeyPressed(KEY_ONE))   { goToScreen(state, SCREEN_DASHBOARD); openFinderAyah(state); }
+        if (IsKeyPressed(KEY_TWO))   { state->showGoToPalette = 0; goToScreen(state, SCREEN_SCREENSAVER); }
+        if (IsKeyPressed(KEY_THREE)) { state->showGoToPalette = 0; goToScreen(state, SCREEN_DASHBOARD); }
 
-        if (state->currentScreen == SCREEN_SEARCH)
-            runSearch(state, results, resultCount);
+        if (state->showGoToPalette && state->paletteMode == 1)
+            runSearch(state, state->searchResults, &state->searchResultCount);
 
-        drawFrame(state, results, *resultCount);
+        drawFrame(state);
 
         if (IsKeyPressed(KEY_C)) playClickSfx();
         if (IsKeyPressed(KEY_S)) playSurahSwitchSfx();
@@ -181,23 +190,24 @@ int main(int argc, char **argv) {
 
     AppState state;
     memset(&state, 0, sizeof(AppState));
-    state.currentScreen = SCREEN_SEARCH;
+    state.currentScreen = SCREEN_DASHBOARD;
     strncpy(state.language, "en", 7);
-    loadMockData(&state);
+    loadTestData(&state);
+    initThemes();
+    initFonts(&state);
+    S = computeScale(1280, 720);
     initAudio();
     initScreensaver();
 
-    SearchResult results[MAX_SEARCH_RESULTS];
-    int resultCount = 0;
-
     int rc = 0;
     if (argc > 1 && strcmp(argv[1], "--auto") == 0)
-        rc = runAuto(&state, results, &resultCount);
+        rc = runAuto(&state);
     else
-        runInteractive(&state, results, &resultCount);
+        runInteractive(&state);
 
     closeAudio();
     closeScreensaver();
+    closeFonts();
     CloseWindow();
 
     if (rc > 0) {
@@ -207,3 +217,4 @@ int main(int argc, char **argv) {
     printf("All integration checks passed\n");
     return 0;
 }
+

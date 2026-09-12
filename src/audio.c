@@ -11,17 +11,21 @@
  * ============================================================ */
 
 #include <raylib.h>
+#include <time.h>
 #include "audio.h"
+#include "screensaver.h"
 
 static Sound clickSound;
 static Sound surahSwitchSound;
 static Sound azanSound;
+static Sound reminderSound;
 static Music natureMusic;
 static Music recitationStream;
 
 static int clickLoaded       = 0;
 static int surahSwitchLoaded = 0;
 static int azanLoaded        = 0;
+static int reminderLoaded    = 0;
 static int natureLoaded      = 0;
 static int recitationActive  = 0;
 
@@ -40,6 +44,10 @@ void initAudio(void) {
         azanSound  = LoadSound("assets/azan.mp3");
         azanLoaded = 1;
     }
+    if (FileExists("assets/reminder.mp3")) {
+        reminderSound  = LoadSound("assets/reminder.mp3");
+        reminderLoaded = 1;
+    }
     if (FileExists("assets/nature.ogg")) {
         natureMusic  = LoadMusicStream("assets/nature.ogg");
         natureLoaded = 1;
@@ -49,6 +57,7 @@ void initAudio(void) {
 }
 
 void updateAudio(AppState *state) {
+    checkPrayerAlerts(state);
     if (natureLoaded && state->isNatureSoundOn)
         UpdateMusicStream(natureMusic);
     if (recitationActive)
@@ -59,6 +68,7 @@ void closeAudio(void) {
     if (clickLoaded)       UnloadSound(clickSound);
     if (surahSwitchLoaded) UnloadSound(surahSwitchSound);
     if (azanLoaded)        UnloadSound(azanSound);
+    if (reminderLoaded)    UnloadSound(reminderSound);
     if (natureLoaded)      UnloadMusicStream(natureMusic);
     if (recitationActive)  UnloadMusicStream(recitationStream);
     CloseAudioDevice();
@@ -75,6 +85,49 @@ void stopAzan(void) {
 
 int isAzanPlaying(void) {
     return azanLoaded && IsSoundPlaying(azanSound);
+}
+
+void playReminder(void) {
+    if (reminderLoaded && !IsSoundPlaying(reminderSound))
+        PlaySound(reminderSound);
+}
+
+void stopReminder(void) {
+    if (reminderLoaded) StopSound(reminderSound);
+}
+
+int isReminderPlaying(void) {
+    return reminderLoaded && IsSoundPlaying(reminderSound);
+}
+
+/* reminder at T-5min, azan at T-0, once per (yday, prayer).
+   Called every frame from updateAudio; static keys re-arm each prayer/day. */
+void checkPrayerAlerts(AppState *state) {
+    static int firedReminderKey = -1;
+    static int firedAzanKey = -1;
+    if (!state) return;
+    if (!azanLoaded && !reminderLoaded) return;
+    PrayerTimes *pt = &state->prayer;
+    if (pt->fajr == 0 && pt->dhuhr == 0 && pt->asr == 0 &&
+        pt->maghrib == 0 && pt->isha == 0) return; /* offline */
+    float target = getNextPrayerTime(pt);
+    if (target <= 0) return;
+    float diff = target - prayerNowHours();
+    if (diff < 0) diff += 24.0f;
+    float minsLeft = diff * 60.0f;
+    time_t t = time(NULL);
+    struct tm *tm = localtime(&t);
+    int key = (tm ? tm->tm_yday : 0) * 10 + nextPrayerIndex(pt);
+    if (minsLeft <= 0.75f) {
+        if (firedAzanKey != key) {
+            stopReminder();
+            firePrayerAlarm(state);
+            firedAzanKey = key;
+        }
+    } else if (minsLeft <= 5.0f) {
+        if (firedReminderKey != key && firedAzanKey != key)
+            playReminder(), firedReminderKey = key;
+    }
 }
 
 void playRecitation(const char *filePath) {
@@ -127,3 +180,4 @@ void playClickSfx(void) {
 void playSurahSwitchSfx(void) {
     if (surahSwitchLoaded) PlaySound(surahSwitchSound);
 }
+
