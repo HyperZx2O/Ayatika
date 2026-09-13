@@ -24,7 +24,6 @@ int main(void) {
     /* Config defaults */
     loadConfig(&state);
     check("config defaults Dhaka", state.latitude > 23.8f && state.latitude < 23.9f);
-    check("config defaults lang en", strcmp(state.language, "en") == 0);
 
     /* Quran data: live API or disk cache; offline fresh = graceful 0 */
     int ok = loadQuranData(&state);

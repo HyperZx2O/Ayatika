@@ -25,7 +25,6 @@ typedef struct {
     int    number;                 /* 1–114 */
     char   name[64];                /* e.g. "Al-Fatiha" */
     char   arabicName[128];         /* e.g. "الفاتحة" */
-    char   meaning[128];             /* e.g. "The Opening" */
     char   revelationType[16];      /* "Meccan" or "Medinan" */
     int    ayahCount;
     char   context[512];            /* short backstory for the overview card */
@@ -37,8 +36,6 @@ typedef struct {
     /* 4096 — real maxima are 2283 (ar, 2:282) and 3325 (bn). */
     char   arabicText[4096];
     char   translationEn[4096];
-    char   translationBn[4096];
-    char   audioUrl[256];           /* CDN URL for recitation */
 } Ayah;
 
 typedef struct {
@@ -138,7 +135,6 @@ typedef struct {
     float          latitude;
     float          longitude;
     int            calcMethod;          /* 0 = Karachi, 1 = MWL, 2 = ISNA */
-    char           language[8];         /* "en" or "bn" */
 
     /* Navigation extras */
     int            hubCursor;           /* 0 = Surah tile, 1 = Hadith tile in reading hub */

@@ -156,7 +156,6 @@ int main(int argc, char **argv) {
     AppState state;
     memset(&state, 0, sizeof(AppState));
     state.currentScreen = SCREEN_DASHBOARD;
-    strncpy(state.language, "en", 7);
     loadTestData(&state);
     initThemes();
     initFonts(&state);

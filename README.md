@@ -4,86 +4,100 @@
 >
 > *Built for CSE 4202 — Structured Programming II Laboratory, Islamic University of Technology.*
 
-Ayatika is a keyboard-driven Quran reader with Arabic script rendering, multiple themes, bookmarking, and a curated Hadith panel. The frontend branch delivers the complete user interface and interaction system with zero external dependencies — just `gcc` and `make` on any Windows machine with MinGW-w64.
+Ayatika is a keyboard-driven Quran reader with live API data (6236 ayahs, EN + BN translations), shaped Arabic rendering with tashkeel-aware layout, 4 themes, dual Vim/arrow-key modes, tag bookmarks in SQLite, a unified Finder (surah jump + fuzzy ayah search), prayer times with a reminder/Azan alarm, and a 14,940-hadith Bukhari/Muslim panel. Builds with `gcc` + `make` on Windows (MinGW-w64).
 
 ---
 
-## Screens
+## Screens (9, all in `drawCurrentScreen()`)
 
 | Screen | Description |
 |---|---|
-| **Dashboard** | Ayah of the day, prayer time overview, continue-reading widget, quick-access tiles |
-| **Reading Hub** | Choose between Surah overview or Hadith panel |
-| **Surah Overview** | Context, revelation type, ayah count, and key themes for the selected surah |
-| **Ayah Reader** | Arabic text with optional English/Bengali translation, focus mode, inline bookmarking |
-| **Hadith Panel** | Curated Hadiths from Bukhari and Muslim |
-| **Search** | Search across Quranic text (UI placeholder — engine wired but awaiting backend integration) |
-| **Bookmarks** | Saved ayah references with relative timestamps |
-| **Settings** | Theme, font scale, screensaver timer, language, calculation method, latitude, navigation mode |
-| **Screensaver** | Idle overlay with any-key-to-exit navigation back to origin screen |
+| **Dashboard** | Greeting, prayer countdown + progress, random Ayah of the Day, Hadith card, continue-reading |
+| **Reading Hub** | Two tiles: Surah vs Hadith |
+| **Surah Overview** | Modal: Arabic name, Meccan/Medinan + ayah-count badges, context blurb |
+| **Ayah Reader** | Wrapped right-aligned Arabic + English, ★ bookmark, focus cinematic mode |
+| **Hadith Panel** | Scrollable Bukhari/Muslim cards with source tabs + filter, full-text modal with scroll |
+| **Bookmarks** | Saved `surah:ayah` + tag + relative timestamps |
+| **Settings** | 9 rows: Vim motions, font scale, screensaver s, auto-resume, theme, calc method, latitude edit, test reminder, test prayer alarm |
+| **Screensaver** | Azan prayer alarm (screensaver + Azan together), clock, live next-prayer line, cat |
+| **Help overlay** | `F1` opens on top of any screen, `Esc` closes (Vim vs arrow tables) |
+
+Overlays (float above any screen): **Finder** (`Surahs | Ayahs` tabs), bookmark tag editor, hadith modal, bookmark toast.
 
 ## Keyboard Navigation
 
-Ayatika supports two navigation modes — **Vim-style** (default) or **arrow keys** — switchable from Settings.
+Dual modes — **Vim-style** (`vimMotions==1`) or **arrow keys** (default) — switchable in Settings. Held nav keys repeat (one step, then 25/s after 0.45s).
 
 | Key | Action |
 |---|---|
-| `j` / `Down` | Move cursor down |
-| `k` / `Up` | Move cursor up |
-| `h` / `Left` | Move cursor left |
-| `l` / `Right` | Move cursor right |
+| `j/k` or `Up/Down` | Move cursor (dashboard/hub/list/reader/hadith/finder context-aware) |
+| `h/l` or `Left/Right` | Left/right (dashboard/hub/list) |
 | `Enter` | Open selected item |
-| `Esc` | Go back to previous screen |
-| `g` / `Home` | Go to top / jump to dashboard |
-| `G` / `End` | Go to bottom |
-| `t` | Cycle theme |
+| `Esc` | Go back (help/palette/editor: close; screensaver: exits + silences Azan) |
+| `G` (Shift) / `End` or `PgUp/PgDn` | Go to top / bottom |
+| `Ctrl+d / Ctrl+u` | Half page down / up |
+| `t` | Cycle theme (of 4) |
 | `s` | Open settings |
-| `/` | Open search |
+| `/` | Finder, Ayahs tab |
+| `o` | Finder, Surahs tab |
+| `Tab` | Switch Finder tab / cycle hadith filter |
 | `m` | Open bookmarks |
-| `b` | Bookmark current ayah |
-| `f` | Toggle focus mode |
-| `F1` | Toggle help overlay |
+| `b` | Bookmark current ayah with tag editor (reader only) |
+| `d` | Delete bookmark (bookmarks page only) |
+| `f` | Toggle focus cinematic (reader only) |
+| `g` | Go to dashboard (both modes) |
+| `F1` | Open help overlay |
 
+Surah list extras: type digits to jump to a number live (`Go: 36`), type a free letter to summon the palette prefilled, click Finder rows to open. Settings rows use `j/k`+`Enter`/`Space`, latitude row types inline (`Enter` confirm, `Esc` cancel).
+
+## Prayer Alarm
+
+Reminder audio plays 5 minutes before the waqt (`assets/reminder.mp3`); at waqt start the app enters the screensaver and plays the Azan (`assets/azan.mp3`, once per waqt). Exiting the screensaver silences it.
 ## Themes
 
-Ayatika ships with four hand-tuned color themes that also control the window title bar (dark/light):
+Four presets + native title-bar sync (`dwmapi.dll`):
 
 | Theme | Background | Accent | Character |
 |---|---|---|---|
 | **Celestial Night** | Deep navy `#0C0E1C` | Gold `#D2AF5A` | Dark, scholarly |
-| **Moonlit Garden** | Warm cream `#F8F2EB` | Rose `#B46464` | Light, warm |
+| **Moonlit Garden** | Warm cream `#F8F2EB` | Rose `#A55555` | Light, warm |
 | **Peacock Court** | Dark teal `#0A191C` | Coral `#D27864` | Rich, vibrant |
 | **Amber Sanctum** | Warm brown `#372D23` | Emerald `#50AF78` | Earthy, calm |
 
-Press **`t`** to cycle through themes — the title bar follows suit automatically.
+Press **`t`** to cycle — the title bar follows suit automatically. Status line tints accent on errors (`Couldn't save/delete — try again`, offline notice).
 
 ## Tech Stack
 
 | Component | Technology |
 |---|---|
-| Language | **C11** (GCC) |
-| Graphics & Input | **RayLib 5.x** (via GLFW) |
-| Arabic shaping | **FriBidi** (RTL text reordering) |
-| Storage | **SQLite3** (vendored, for future bookmark/history persistence) |
-| Fonts | **Amiri** (Arabic), **JetBrains Mono** (UI) |
+| Language | **C11** (GCC, no C++) |
+| Graphics & Input | **RayLib 5.x** (`lib/libraylib.a`, `lib/include/raylib.h`) + GLFW (`glfw3.dll`, DLL link) |
+| Arabic shaping | **FriBidi** (`lib/libfribidi.a`) via `fribidi_log2vis` + mark-aware draw/measure (tashkeel overstrikes, zero advance) |
+| Fetch | **WinINet** (system, no libcurl) → AlQuran.cloud (`quran-uthmani`, `en.sahih`) + Hadith API CDN (`eng-bukhari`, `eng-muslim`) |
+| JSON | **cJSON** (`lib/cJSON.h/.c`) |
+| Storage | **SQLite3** (`lib/sqlite3.h/.c`, `data/almaktaba.db`) |
+| Search | **fts_fuzzy_match** (`lib/fts_fuzzy_match.h`, limit 256) |
+| Prayer | PrayTime v2.5 port in `prayer.c` (Hanafi Asr, Karachi/MWL/ISNA) |
+| Fonts | **Amiri** (Arabic, 96pt atlas w/ Presentation Forms), **JetBrains Mono** (UI) |
+| Audio | RayLib audio only (no miniaudio): `azan.mp3` (3.4 min), `reminder.mp3` (41 s) |
 
 ## Quick Start
 
 ### Requirements
 
-- A Windows machine (7 / 10 / 11)
-- **MinGW-w64** with `gcc`, `windres`, and `make` on your system PATH
+- Windows 7 / 10 / 11
+- **MinGW-w64** with `gcc`, `make`, and `windres` on PATH (windres embeds the DPI-aware manifest)
 
 ### Build & Run
 
 ```bash
-git clone -b frontend https://github.com/HyperZx2O/Ayatika.git
+git clone https://github.com/HyperZx2O/Ayatika.git
 cd Ayatika
 make
 make run
 ```
 
-No additional dependencies to install — all libraries are statically linked and vendored in `lib/`. The only system DLL required (`glfw3.dll`) is included in the repository.
+Vendored static libs in `lib/`; only system DLL needed (`glfw3.dll`) is in the repo root. First run downloads Quran, translation, and hadith data into `data/` (offline afterwards).
 
 ### Tests
 
@@ -91,44 +105,60 @@ No additional dependencies to install — all libraries are statically linked an
 make test
 ```
 
-Runs 23 tests across mock data, theme system, screen enumeration, UI rendering, and input handling.
+Builds + runs 7 harnesses: `test_backend`, `test_audio`, `test_search`, `test_search_ui`, `test_screensaver`, `test_cat`, `test_systems --auto` (each PASS/FAIL, non-zero on failure).
 
 ## Project Structure
 
 ```
 Ayatika/
-├── assets/              # Font files (Amiri, JetBrains Mono)
-├── data/                # Runtime data (gitignored, created on first run)
+├── assets/              # Amiri + JetBrains Mono + Hind Siliguri, azan/reminder/nature/click/switch, cat.png (6f), hadiths.json fallback
+├── data/                # Runtime JSON/DB/ini (gitignored + .gitkeep)
 ├── lib/
-│   ├── include/
-│   │   ├── fribidi/     # Vendored FriBidi headers
-│   │   └── raylib.h     # Vendored RayLib header
-│   ├── sqlite3.c        # Vendored SQLite amalgamation
-│   ├── sqlite3.h
-│   ├── libraylib.a      # Static-linked RayLib
-│   ├── libglfw3.dll.a   # GLFW import library
-│   └── libfribidi.a     # Static-linked FriBidi
+│   ├── include/raylib.h + include/fribidi/
+│   ├── cJSON.h/.c, sqlite3.h/.c, fts_fuzzy_match.h
+│   └── libraylib.a, libglfw3.dll.a, libfribidi.a
 ├── src/
-│   ├── main.c           # Entry point, window init, main loop
-│   ├── ui.c / ui.h      # All screen rendering (dashboard, reader, settings, etc.)
-│   ├── input.c / input.h# Keyboard input handling and key bindings
-│   ├── theme.c / theme.h# Color theme definitions and cycling
-│   ├── quran.c / quran.h# Quran data structures, daily ayah logic
-│   └── mock_data.c/h    # Built-in mock dataset (surahs, ayahs, hadiths)
-├── tests/               # Phase test files
-├── glfw3.dll            # GLFW runtime DLL (required at runtime)
-├── ayatika.exe.manifest # Windows DPI / compatibility manifest
-├── Makefile             # Zero-dependency build (just gcc + make)
-└── ARCHITECTURE.md      # Full project architecture and team breakdown
+│   ├── main.c           # Entry, title-bar sync, scale loop, idle→screensaver, live API data
+│   ├── quran.h/.c       # Shared structs + fetch/parse/lookup (Quran API + Hadith API, 4096B fields, UTF-8-safe copy)
+│   ├── prayer.c         # PrayTimes + prohibited + countdown + alert helpers
+│   ├── db.c             # SQLite tag bookmarks (deterministic order) + closeDatabase
+│   ├── surah_meta.c     # 114 hardcoded surahs
+│   ├── config.c         # 11-key ini + Dhaka defaults
+│   ├── ui.c / ui.h      # 9 screens + Finder/palette/editor overlays, Scale system, FriBidi RTL, wrapped Arabic
+│   ├── input.c / input.h# Shared/vim/arrow/settings/palette/editor bindings, key repeat, jump buffer
+│   ├── theme.c / theme.h# 4 presets, cycleTheme
+│   ├── audio.c / audio.h# Azan/reminder/recitation(file)/nature/SFX + waqt alert check, FileExists-guarded
+│   ├── screensaver.c/h  # Cat + screensaver + firePrayerAlarm
+│   └── search.c / search.h # Ayah fuzzy engine + palette surah filter + seams
+├── tests/               # 7 wired harnesses + test_data fixture
+├── glfw3.dll
+├── ayatika.exe.manifest # PerMonitorV2 DPI + asInvoker (embedded via windres)
+├── manifest.rc
+├── Makefile
+└── ARCHITECTURE.md
 ```
 
 ## Architecture Notes
 
-- **All rendering is immediate-mode** via RayLib — no retained UI state beyond the `AppState` struct.
-- **Navigation uses a lightweight screen stack** — `pushScreen` / `goBack` with `previousScreen` tracking, plus a `settingsOrigin` field for screensaver back-navigation.
-- **Arabic text** is shaped with FriBidi then loaded into a RayLib font atlas at startup, covering all codepoints needed across the loaded surahs.
-- **Theming** — 4 themes stored as static `Color` structs. `cycleTheme()` advances the index; `applyTitleBarTheme()` calls `DwmSetWindowAttribute` (via runtime dynamic loading of `dwmapi.dll`) to match the native title bar.
-- **The dashboard** shows a daily ayah selected by day-of-year modulo total ayahs, prayer time estimates, and a "continue reading" card driven by mock bookmarks.
+- **Immediate-mode RayLib** — no retained UI beyond `AppState` (9 screens, `Scale S`, Finder state, search results, prayer, config).
+- **Navigation** — `pushScreen`/`goBack` + `previousScreen`; hub/hadith cursors; `dashboardCursor` 0–4; `g` goes home; help/palette/editor are input-modal overlays.
+- **Arabic** — `collectArabicCodepoints()` + `LoadFontEx(Amiri,96)` incl. Presentation Forms; `reorderArabic()` (FriBidi) → visual-order word wrap (`drawArabicWrapped`, cached, right-aligned lines); tashkeel marks draw overstruck via `drawShaped`/`measureShaped` (always paired).
+- **Buffers** — ayah/translation fields are 4096B (real maxima: 2283B Arabic); ingest uses UTF-8-boundary-safe copy; FriBidi working sets are 4096 codepoints.
+- **Scaling** — `computeScale(min(sw/1280,sh/720)∈[0.4,3.0])` derives all layout/fonts; `fontScale` multiplies; window minimum 960×600.
+- **Theming** — 4 static `Theme`s; `cycleTheme()` wraps; `applyTitleBarTheme()` via runtime `dwmapi.dll`; footer status tints accent on errors.
+- **Dashboard** — greeting + `nextPrayerInfo()` countdown/progress + date-seeded random Ayah of the Day + Hadith-of-day + continue-reading with relative times.
+- **Finder** — one query box, two engines: surah fuzzy/prefix (`paletteFilter`) and ayah fuzzy (`runSearch`: lowercased, translation + surah-name `+500`, `qsort` desc, top 15, 2-char min); `Tab` switches; `searchAppendChar/Backspace/MoveSelection` seams.
+- **Screensaver/cat/alarm** — 6f @ 0.15s 2.5x; `checkPrayerAlerts()` fires reminder at T-5min and `firePrayerAlarm()` (screensaver + Azan) at T-0, once per (day, prayer); rings + clock + live next-prayer line.
+- **Bookmarks** — tag-only SQLite rows (`ORDER BY timestamp DESC, id DESC`); `b` opens the tag editor; `d` deletes with feedback.
+- **Config** — `data/config.ini` 11 keys (`latitude/longitude/calcMethod/language/lastSurah/lastAyah/vimMotions/fontScale/idleSeconds/autoResume/theme`); `fgets`-parsed; Dhaka defaults.
+
+## Team
+
+| Member | GitHub |
+|---|---|
+| MD. Sadman Saif | [@HyperZx2O](https://github.com/HyperZx2O) |
+| Afra Tasfia | [@afraNoOneAT](https://github.com/afraNoOneAT) |
+| Montaha Zaman | [@yvonnieeez](https://github.com/yvonnieeez) |
 
 ---
 

@@ -128,11 +128,6 @@ static int parseQuranJSON(AppState *state, const char *filepath) {
                 strncpy(s->arabicName, item->valuestring, sizeof(s->arabicName) - 1);
         }
         {
-            cJSON *item = cJSON_GetObjectItem(surah, "englishNameTranslation");
-            if (cJSON_IsString(item))
-                strncpy(s->meaning, item->valuestring, sizeof(s->meaning) - 1);
-        }
-        {
             cJSON *item = cJSON_GetObjectItem(surah, "revelationType");
             if (cJSON_IsString(item))
                 strncpy(s->revelationType, item->valuestring, sizeof(s->revelationType) - 1);
@@ -167,7 +162,7 @@ static int parseQuranJSON(AppState *state, const char *filepath) {
     return 1;
 }
 
-static int mergeTranslation(AppState *state, const char *filepath, const char *lang) {
+static int mergeTranslation(AppState *state, const char *filepath) {
     long len;
     char *buf = readFile(filepath, &len);
     if (!buf) return 0;
@@ -182,7 +177,6 @@ static int mergeTranslation(AppState *state, const char *filepath, const char *l
     cJSON *surahs = cJSON_GetObjectItem(data, "surahs");
     if (!surahs || !cJSON_IsArray(surahs)) { cJSON_Delete(root); return 0; }
 
-    int isBn = (strcmp(lang, "bn") == 0);
     int surahCount = cJSON_GetArraySize(surahs);
 
     for (int i = 0; i < surahCount; i++) {
@@ -206,12 +200,8 @@ static int mergeTranslation(AppState *state, const char *filepath, const char *l
             for (int k = 0; k < state->totalAyahs; k++) {
                 if (state->ayahs[k].surahNumber == surahNum &&
                     state->ayahs[k].ayahNumber == ayahNum) {
-                    if (isBn)
-                        copyTextSafe(state->ayahs[k].translationBn, text->valuestring,
-                                     sizeof(state->ayahs[k].translationBn));
-                    else
-                        copyTextSafe(state->ayahs[k].translationEn, text->valuestring,
-                                     sizeof(state->ayahs[k].translationEn));
+                    copyTextSafe(state->ayahs[k].translationEn, text->valuestring,
+                                 sizeof(state->ayahs[k].translationEn));
                     break;
                 }
             }
@@ -261,15 +251,7 @@ int loadQuranData(AppState *state) {
             "https://api.alquran.cloud/v1/quran/en.sahih",
             "data/translation_en.json");
     }
-    mergeTranslation(state, "data/translation_en.json", "en");
-
-    if (access("data/translation_bn.json", F_OK) != 0) {
-        printf("Fetching Bengali translation...\n");
-        fetchAndSave(
-            "https://api.alquran.cloud/v1/quran/bn.bengali",
-            "data/translation_bn.json");
-    }
-    mergeTranslation(state, "data/translation_bn.json", "bn");
+    mergeTranslation(state, "data/translation_en.json");
 
     /* overlay static context blurbs onto API surahs; API has no context. */
     for (int i = 0; i < state->surahCount; i++) {
@@ -277,8 +259,6 @@ int loadQuranData(AppState *state) {
         getSurahMeta(state->surahs[i].number, &meta);
         if (!state->surahs[i].context[0])
             snprintf(state->surahs[i].context, sizeof(state->surahs[i].context), "%s", meta.context);
-        if (!state->surahs[i].meaning[0])
-            snprintf(state->surahs[i].meaning, sizeof(state->surahs[i].meaning), "%s", meta.meaning);
         if (!state->surahs[i].revelationType[0])
             snprintf(state->surahs[i].revelationType, sizeof(state->surahs[i].revelationType), "%s", meta.revelationType);
     }

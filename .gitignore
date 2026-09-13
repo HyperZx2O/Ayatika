@@ -21,7 +21,6 @@ test_*.c
 # Runtime-generated data (not committed — created on first run)
 data/quran.json
 data/translation_en.json
-data/translation_bn.json
 data/hadiths.json
 data/hadith_*.json
 data/almaktaba.db

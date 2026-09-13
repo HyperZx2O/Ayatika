@@ -20,7 +20,6 @@ static void drawBookmarkEditor(AppState *state);
 
 Font arabicFont;
 Font uiFont;
-Font bengaliFont;
 
 Scale S;
 
@@ -208,29 +207,9 @@ void initFonts(AppState *state) {
         SetTextureFilter(uiFont.texture, TEXTURE_FILTER_BILINEAR);
     else
         uiFont = GetFontDefault();
-
-    /* Load Hind Siliguri for Bengali translations */
-    int bnCodepoints[256];
-    int bnCount = 0;
-    for (int i = 0x0980; i <= 0x09FF; i++) bnCodepoints[bnCount++] = i;
-    for (int i = 0x0020; i <= 0x007E; i++) bnCodepoints[bnCount++] = i;
-
-    bengaliFont = LoadFontEx("assets/HindSiliguri-Regular.ttf", 96, bnCodepoints, bnCount);
-    if (bengaliFont.texture.id > 0) {
-        SetTextureFilter(bengaliFont.texture, TEXTURE_FILTER_BILINEAR);
-        printf("Hind Siliguri loaded: %dx%d atlas, %d glyphs\n",
-               bengaliFont.texture.width, bengaliFont.texture.height,
-               bengaliFont.glyphCount);
-    } else {
-        printf("WARNING: Hind Siliguri failed to load, Bengali falls back to UI font\n");
-        bengaliFont = uiFont;
-    }
 }
 
 void closeFonts(void) {
-    if (bengaliFont.texture.id > 0 && bengaliFont.texture.id != uiFont.texture.id &&
-        bengaliFont.texture.id != arabicFont.texture.id)
-        UnloadFont(bengaliFont);
     if (uiFont.texture.id > 0 && uiFont.texture.id != arabicFont.texture.id)
         UnloadFont(uiFont);
     if (arabicFont.texture.id > 0)
@@ -630,13 +609,6 @@ static void drawWrappedText(const char *text, Rectangle bounds, int fontSize, Co
     drawWrappedTextScroll(text, bounds, uiFont, fontSize, color, 0);
 }
 
-/* Bengali translations render in Hind Siliguri, all else in UI font. */
-static Font trFont(AppState *state) {
-    if (strcmp(state->language, "bn") == 0 && bengaliFont.texture.id > 0)
-        return bengaliFont;
-    return uiFont;
-}
-
 void drawDashboard(AppState *state) {
     Theme *t = getTheme(state->currentTheme);
     int sw = GetScreenWidth();
@@ -739,12 +711,11 @@ void drawDashboard(AppState *state) {
             /* ── Full translation (wrapped, not truncated) ── */
             int transTop = sep2Y + S.gy/2;
             int transBottom = (int)(r.y + r.height - S.cardPadY - S.fs13 - S.gy);
-            char *translation = (strcmp(state->language, "bn") == 0)
-                                ? a->translationBn : a->translationEn;
+            char *translation = a->translationEn;
             drawWrappedTextScroll(translation,
                 (Rectangle){(float)innerX, (float)transTop,
                             (float)innerW, (float)(transBottom - transTop)},
-                trFont(state), S.fs14, t->muted, 0);
+                uiFont, S.fs14, t->muted, 0);
 
             /* ── Footer reference line ── */
             char footerRef[128];
@@ -1008,8 +979,7 @@ static void drawAyahContent(AppState *state, Theme *t, int sw, int sh) {
         (float)(rightMargin - starInset), (float)my,
         (float)(mainW - starInset), arMaxH, (float)S.fs40, (float)S.fs14, t->foreground);
 
-    char *translation = (strcmp(state->language, "bn") == 0)
-                        ? ayah->translationBn : ayah->translationEn;
+    char *translation = ayah->translationEn;
     /* cap measure near 75ch so wide windows stay readable. */
     int wrapW = mainW;
     int maxMeasure = (int)(720 * S.factor);
@@ -1020,7 +990,7 @@ static void drawAyahContent(AppState *state, Theme *t, int sw, int sh) {
     drawWrappedTextScroll(translation,
                     (Rectangle){(float)mx, (float)trTop,
                                 (float)wrapW, trH},
-                    trFont(state), S.fs16, t->muted, 0);
+                    uiFont, S.fs16, t->muted, 0);
 
     char ref[32];
     snprintf(ref, sizeof(ref), "%d:%d", state->currentSurah, state->currentAyah);
@@ -1125,15 +1095,14 @@ static void drawFocusCinematic(AppState *state, Theme *t, int sw, int sh) {
                 (float)S.fs42, (float)S.fs14, t->foreground);
 
             /* ── Translation — wrapped below the Arabic ── */
-            char *translation = (strcmp(state->language, "bn") == 0)
-                                ? ayah->translationBn : ayah->translationEn;
+            char *translation = ayah->translationEn;
             float refH = (float)S.fs14;
             float hintH = (float)S.fs12;
             float trTop = arY + arUsed + S.gy;
             float trBottom = innerBottom - (refH + S.gy + hintH + S.gy);
             drawWrappedTextScroll(translation,
                 (Rectangle){innerPad, trTop, innerW, trBottom - trTop},
-                trFont(state), S.fs16, t->muted, 0);
+                uiFont, S.fs16, t->muted, 0);
 
             /* ── Reference + hint (pinned to bottom) ── */
             char ref[128];
@@ -1326,7 +1295,7 @@ void drawSettings(AppState *state) {
     /* Row labels */
     const char *labels[] = {
         "Vim Motions", "Font Scale", "Screensaver (s)", "Auto Resume",
-        "Theme", "Language", "Calc Method", "Latitude",
+        "Theme", "Calc Method", "Latitude",
         "Test Reminder", "Test Prayer Alarm",
     };
     int rowCount = SETTINGS_ROW_COUNT;
@@ -1363,9 +1332,8 @@ void drawSettings(AppState *state) {
             case 2: snprintf(numBuf, sizeof(numBuf), "%d", state->idleSeconds); val = numBuf; break;
             case 3: val = state->autoResume ? "ON" : "OFF"; break;
             case 4: val = t->name; break;
-            case 5: val = state->language[0] == 'b' ? "Bengali" : "English"; break;
-            case 6: val = state->calcMethod == 0 ? "Karachi" : state->calcMethod == 1 ? "MWL" : "ISNA"; break;
-            case 7:
+            case 5: val = state->calcMethod == 0 ? "Karachi" : state->calcMethod == 1 ? "MWL" : "ISNA"; break;
+            case 6:
                 if (isCursor && isEditingLat()) {
                     /* Show editable buffer with blinking cursor */
                     val = getLatEditBuf();
@@ -1374,8 +1342,8 @@ void drawSettings(AppState *state) {
                     val = numBuf;
                 }
                 break;
+            case 7: val = "Play"; break;
             case 8: val = "Play"; break;
-            case 9: val = "Play"; break;
         }
         if (val[0]) {
             float vw = MeasureTextEx(uiFont, val, S.fs14, 1).x;

@@ -49,7 +49,6 @@ Scale computeScale(int sw, int sh);
 
 extern Font arabicFont;
 extern Font uiFont;
-extern Font bengaliFont;
 
 void initFonts(AppState *state);
 void closeFonts(void);

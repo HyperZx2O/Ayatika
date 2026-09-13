@@ -454,14 +454,13 @@ static void settingsToggle(AppState *state) {
             break;
         case 3: state->autoResume = !state->autoResume; break;
         case 4: cycleTheme(state); applyTitleBarTheme(getTheme(state->currentTheme)); break;
-        case 5: strncpy(state->language, strcmp(state->language, "bn") == 0 ? "en" : "bn", 7); break;
-        case 6: state->calcMethod = (state->calcMethod + 1) % 3; break;
-        case 7: latEditStart(state); break;
-        case 8: /* test buttons play through the real audio path. */
+        case 5: state->calcMethod = (state->calcMethod + 1) % 3; break;
+        case 6: latEditStart(state); break;
+        case 7: /* test buttons play through the real audio path. */
             playReminder();
             setStatus(state, 0, "Playing reminder…");
             break;
-        case 9:
+        case 8:
             firePrayerAlarm(state);
             setStatus(state, 0, "Prayer alarm test…");
             break;

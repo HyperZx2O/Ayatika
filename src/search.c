@@ -49,13 +49,11 @@ void runSearch(AppState *state, SearchResult *results, int *resultCount) {
     static SearchResult all[6500];
     int allCount = 0;
 
-    int useBn = (state->language[0] == 'b');
-
     for (int i = 0; i < state->totalAyahs && allCount < 6500; i++) {
         Ayah *ayah = &state->ayahs[i];
 
-        /* Search the active-language translation */
-        const char *tr = (useBn && ayah->translationBn[0]) ? ayah->translationBn : ayah->translationEn;
+        /* Search the English translation */
+        const char *tr = ayah->translationEn;
         char textLower[2048];
         toLowerStr(tr, textLower, sizeof(textLower));
 

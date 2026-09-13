@@ -35,8 +35,6 @@ void loadConfig(AppState *state) {
     state->latitude   = 23.8103f;
     state->longitude  = 90.4125f;
     state->calcMethod = 0;
-    strncpy(state->language, "en", sizeof(state->language) - 1);
-    state->language[sizeof(state->language) - 1] = '\0';
     state->currentSurah = 1;
     state->currentAyah  = 1;
     state->vimMotions = 0;
@@ -57,10 +55,6 @@ void loadConfig(AppState *state) {
         if (strcmp(key, "latitude")   == 0) state->latitude   = (float)atof(val);
         else if (strcmp(key, "longitude")  == 0) state->longitude  = (float)atof(val);
         else if (strcmp(key, "calcMethod") == 0) state->calcMethod = atoi(val);
-        else if (strcmp(key, "language")   == 0) {
-            strncpy(state->language, val, sizeof(state->language) - 1);
-            state->language[sizeof(state->language) - 1] = '\0';
-        }
         else if (strcmp(key, "lastSurah")  == 0) state->currentSurah = atoi(val);
         else if (strcmp(key, "lastAyah")   == 0) state->currentAyah  = atoi(val);
         else if (strcmp(key, "vimMotions") == 0) state->vimMotions = atoi(val);
@@ -80,7 +74,6 @@ void saveConfig(AppState *state) {
     fprintf(f, "latitude=%.6f\n",   state->latitude);
     fprintf(f, "longitude=%.6f\n",  state->longitude);
     fprintf(f, "calcMethod=%d\n",   state->calcMethod);
-    fprintf(f, "language=%s\n",     state->language);
     fprintf(f, "lastSurah=%d\n",    state->currentSurah);
     fprintf(f, "lastAyah=%d\n",     state->currentAyah);
     fprintf(f, "vimMotions=%d\n",   state->vimMotions);
