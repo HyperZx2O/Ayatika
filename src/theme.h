@@ -1,17 +1,10 @@
 #ifndef THEME_H
 #define THEME_H
 
-/* ============================================================
- * theme.h — Color palette system
- * Owned by: Frontend Engineer
- *
- * See member2.md for the full implementation plan.
- * ============================================================ */
-
 #include <raylib.h>
 #include "quran.h"
 
-#define THEME_COUNT 3
+#define THEME_COUNT 4
 
 typedef struct {
     char  name[32];
@@ -26,5 +19,6 @@ typedef struct {
 void   initThemes(void);
 Theme *getTheme(int index);
 void   cycleTheme(AppState *state);
+void   applyTitleBarTheme(Theme *theme);
 
-#endif /* THEME_H */
+#endif

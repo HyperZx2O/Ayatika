@@ -1,14 +1,28 @@
 # Compiled binary
 ayatika
+tests/test_phase[0-9]*
 *.o
+*.res
 *.out
 *.exe
+*.dll
+!glfw3.dll
+
+# Runtime log / diagnostic output
+console_*.txt
+diagnostic_dump.txt
+diag_*.txt
+tests/diag_*.txt
+
+# Throwaway drivers at repo root only (tests/*.c are real harnesses)
+test_*.c
+!tests/test_*.c
 
 # Runtime-generated data (not committed — created on first run)
 data/quran.json
 data/translation_en.json
-data/translation_bn.json
 data/hadiths.json
+data/hadith_*.json
 data/almaktaba.db
 data/*.db
 data/config.ini
@@ -16,13 +30,21 @@ data/config.ini
 # Keep the data/ folder structure but ignore its generated contents
 !data/.gitkeep
 
+# Planning documents (implementation plan per member)
+context/
+
 # Editor / OS junk
 .vscode/
 .idea/
 *.swp
 .DS_Store
 Thumbs.db
+nul
 
 # Build artifacts
 build/
 *.dSYM/
+
+# Project planning / agent instructions
+AGENTS.md
+.mimocode/
