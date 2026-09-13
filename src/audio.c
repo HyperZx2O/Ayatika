@@ -61,6 +61,10 @@ void stopReminder(void) {
     if (reminderLoaded) StopSound(reminderSound);
 }
 
+int isReminderPlaying(void) {
+    return reminderLoaded && IsSoundPlaying(reminderSound);
+}
+
 /* reminder at T-5min, azan at T-0, once per (yday, prayer).
    Called every frame from updateAudio; static keys re-arm each prayer/day. */
 void checkPrayerAlerts(AppState *state) {

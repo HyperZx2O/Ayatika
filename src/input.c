@@ -262,6 +262,13 @@ static void goBack(AppState *state) {
         state->currentScreen = SCREEN_DASHBOARD;
         return;
     }
+    if (state->previousScreen == state->currentScreen) {
+        /* Degenerate chain (e.g. alarm fired from settings and returned
+           there, leaving both pointers on settings) — Esc must always
+           have somewhere to go, so fall back to the dashboard. */
+        state->currentScreen = SCREEN_DASHBOARD;
+        return;
+    }
     state->currentScreen = state->previousScreen;
     if (state->currentScreen == SCREEN_AYAH_READER && state->currentAyah < 1)
         state->currentAyah = 1;
@@ -457,8 +464,13 @@ static void settingsToggle(AppState *state) {
         case 5: state->calcMethod = (state->calcMethod + 1) % 3; break;
         case 6: latEditStart(state); break;
         case 7: /* test buttons play through the real audio path. */
-            playReminder();
-            setStatus(state, 0, "Playing reminder…");
+            if (isReminderPlaying()) {
+                stopReminder();
+                setStatus(state, 0, "Reminder stopped.");
+            } else {
+                playReminder();
+                setStatus(state, 0, "Playing reminder…");
+            }
             break;
         case 8:
             firePrayerAlarm(state);

@@ -10,6 +10,7 @@
 #include "input.h"
 #include "search.h"
 #include "screensaver.h"
+#include "audio.h"
 
 /* Forward declarations for helpers used before their definitions. */
 static int reorderArabic(const char *text, char *visualOut, int outSize);
@@ -1342,7 +1343,7 @@ void drawSettings(AppState *state) {
                     val = numBuf;
                 }
                 break;
-            case 7: val = "Play"; break;
+            case 7: val = isReminderPlaying() ? "Stop" : "Play"; break;
             case 8: val = "Play"; break;
         }
         if (val[0]) {

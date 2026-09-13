@@ -22,6 +22,7 @@ void stopAzan(void);                  /* stop the azan immediately */
 /* Reminder (5 min before waqt) */
 void playReminder(void);              /* play the reminder clip once; no-op if already playing */
 void stopReminder(void);              /* stop the reminder immediately */
+int  isReminderPlaying(void);         /* 1 while the reminder is playing */
 
 /* Waqt alerts — reminder at T-5min, azan at T-0; call every frame via updateAudio */
 void checkPrayerAlerts(AppState *state);

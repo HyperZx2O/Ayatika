@@ -83,10 +83,15 @@ void drawScreensaver(AppState *state) {
     DrawCircleLines(cx, cy, 60.0f + sinf(t) * 5.0f,
                     (Color){180, 140, 60, 80});
 
+    /* Stacked rows below the pattern — each row starts after the
+       previous one ends plus a gap, so nothing can overlap. */
+    float rowY = (float)cy + 108.0f;
+
     /* Bismillah in real Arabic via the frontend RTL helper. */
-    drawArabicTextCentered("بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
-        (Rectangle){0, (float)(cy + 110), (float)sw, 34},
+    drawArabicTextCentered("بسم الله الرحمن الرحيم",
+        (Rectangle){0, rowY, (float)sw, 40},
         30, (Color){220, 210, 185, 255});
+    rowY += 40.0f + 16.0f;
 
     /* Current time */
     time_t now = time(NULL);
@@ -98,7 +103,8 @@ void drawScreensaver(AppState *state) {
              hour, now_tm->tm_min, now_tm->tm_hour >= 12 ? "PM" : "AM");
     DrawText(timeStr,
              sw/2 - MeasureText(timeStr, 52)/2,
-             sh/2 + 80, 52, (Color){220, 210, 185, 255});
+             (int)rowY, 52, (Color){220, 210, 185, 255});
+    rowY += 52.0f + 14.0f;
 
     /* Next prayer from live backend data. */
     char prayerLine[64];
@@ -107,7 +113,7 @@ void drawScreensaver(AppState *state) {
              formatCountdown(getNextPrayerTime(&state->prayer)));
     DrawText(prayerLine,
              sw/2 - MeasureText(prayerLine, 18)/2,
-             sh/2 + 150, 18, (Color){120, 110, 90, 255});
+             (int)rowY, 18, (Color){120, 110, 90, 255});
 
     DrawText("Press any key to return",
              sw/2 - MeasureText("Press any key to return", 14)/2,
