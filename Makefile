@@ -22,7 +22,7 @@ WINDRES = windres
 RES     = manifest.res
 TARGET  = ayatika
 
-.PHONY: all run clean test
+.PHONY: all run clean test test-headless
 
 all: $(TARGET)
 
@@ -34,6 +34,13 @@ $(TARGET): $(SRC) $(LIBOBJ) $(RES)
 
 run: $(TARGET)
 	./$(TARGET)
+
+# `make test-headless` runs only the window-free harnesses:
+# backend (data, prayer incl. alert schedule, db, config) + search.
+# Runs anywhere, no screen or sound needed — suitable for CI.
+test-headless: test_backend test_search
+	./tests/test_backend
+	./tests/test_search
 
 # `make test` builds and runs every harness. Each prints PASS/FAIL per
 # check and exits non-zero if any check fails.

@@ -79,15 +79,14 @@ void checkPrayerAlerts(AppState *state) {
     time_t t = time(NULL);
     struct tm *tm = localtime(&t);
     int key = (tm ? tm->tm_yday : 0) * 10 + nextPrayerIndex(pt);
-    if (minsLeft <= 0.75f) {
-        if (firedAzanKey != key) {
-            stopReminder();
-            firePrayerAlarm(state);
-            firedAzanKey = key;
-        }
-    } else if (minsLeft <= 5.0f) {
-        if (firedReminderKey != key && firedAzanKey != key)
-            playReminder(), firedReminderKey = key;
+    int decision = decidePrayerAlert(minsLeft, key, firedReminderKey, firedAzanKey);
+    if (decision == ALERT_AZAN) {
+        stopReminder();
+        firePrayerAlarm(state);
+        firedAzanKey = key;
+    } else if (decision == ALERT_REMINDER) {
+        playReminder();
+        firedReminderKey = key;
     }
 }
 

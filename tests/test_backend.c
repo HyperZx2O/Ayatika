@@ -77,6 +77,33 @@ int main(void) {
         check("next idx in range", idx >= 0 && idx < 5);
         check("next idx matches name", strcmp(getNextPrayerName(&state.prayer), names[idx]) == 0);
     }
+    /* alert schedule — pure decision, no clock or audio needed. */
+    check("far out stays silent", decidePrayerAlert(60.0f, 100, -1, -1) == ALERT_NONE);
+    check("just past 5min stays silent", decidePrayerAlert(5.01f, 100, -1, -1) == ALERT_NONE);
+    check("at 5min reminds", decidePrayerAlert(5.0f, 100, -1, -1) == ALERT_REMINDER);
+    check("just above azan line reminds", decidePrayerAlert(0.76f, 100, -1, -1) == ALERT_REMINDER);
+    check("at 0.75min azan fires", decidePrayerAlert(0.75f, 100, -1, -1) == ALERT_AZAN);
+    check("overdue azan fires", decidePrayerAlert(-2.0f, 100, -1, -1) == ALERT_AZAN);
+    check("reminder fires once per waqt",
+          decidePrayerAlert(4.0f, 100, -1, -1) == ALERT_REMINDER &&
+          decidePrayerAlert(4.0f, 100, 100, -1) == ALERT_NONE);
+    check("azan fires once per waqt",
+          decidePrayerAlert(0.5f, 100, -1, -1) == ALERT_AZAN &&
+          decidePrayerAlert(0.5f, 100, -1, 100) == ALERT_NONE);
+    check("no reminder after its azan fired",
+          decidePrayerAlert(4.0f, 100, -1, 100) == ALERT_NONE);
+    check("reminder does not block its azan",
+          decidePrayerAlert(0.5f, 100, 100, -1) == ALERT_AZAN);
+    { /* full waqt walk-through: silent → reminder → silent → azan → silent → next day fires again */
+        int rem = -1, azn = -1, ok = 1;
+        ok &= decidePrayerAlert(10.0f, 100, rem, azn) == ALERT_NONE;
+        ok &= decidePrayerAlert(4.0f, 100, rem, azn) == ALERT_REMINDER; rem = 100;
+        ok &= decidePrayerAlert(4.0f, 100, rem, azn) == ALERT_NONE;
+        ok &= decidePrayerAlert(0.5f, 100, rem, azn) == ALERT_AZAN;     azn = 100;
+        ok &= decidePrayerAlert(0.5f, 100, rem, azn) == ALERT_NONE;
+        ok &= decidePrayerAlert(0.5f, 101, rem, azn) == ALERT_AZAN;
+        check("full waqt sequence fires once each", ok);
+    }
 
     /* DB round-trip with sentinel tag */
     check("initDatabase", initDatabase());

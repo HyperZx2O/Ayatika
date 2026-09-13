@@ -177,6 +177,9 @@ float getNextPrayerTime(PrayerTimes *pt);
 int   nextPrayerIndex(PrayerTimes *pt); /* 0-4 Fajr..Isha for the slot getNextPrayerTime picks */
 float prayerNowHours(void);             /* current local time as hours, for alert math */
 char *formatCountdown(float targetTime);
+/* waqt-alert decision outcomes */
+enum { ALERT_NONE = 0, ALERT_REMINDER = 1, ALERT_AZAN = 2 };
+int   decidePrayerAlert(float minsLeft, int key, int firedReminderKey, int firedAzanKey);
 
 /* db.c */
 int   initDatabase(void);

@@ -225,6 +225,18 @@ int nextPrayerIndex(PrayerTimes *pt) {
     return 0; /* wrapped to tomorrow's Fajr */
 }
 
+/* Pure waqt-alert decision behind checkPrayerAlerts (audio.c):
+ * reminder at T-5min, azan at T-0, each once per waqt key
+ * (key = yday * 10 + prayer index). No clock, no audio — headless-testable. */
+int decidePrayerAlert(float minsLeft, int key, int firedReminderKey, int firedAzanKey) {
+    if (minsLeft <= 0.75f) {
+        if (firedAzanKey != key) return ALERT_AZAN;
+    } else if (minsLeft <= 5.0f) {
+        if (firedReminderKey != key && firedAzanKey != key) return ALERT_REMINDER;
+    }
+    return ALERT_NONE;
+}
+
 char *formatCountdown(float targetTime) {
     static char buf[32];
     float diff = targetTime - currentHour();
