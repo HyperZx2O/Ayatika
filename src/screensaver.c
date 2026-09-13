@@ -21,8 +21,6 @@
 
 #define CAT_FRAME_COUNT 6   /* frames in assets/cat.png; adjust if sheet differs */
 
-static int azanFired = 0;   /* only play Azan once per screensaver session */
-
 static Texture2D catSheet;
 static int       catLoaded       = 0;
 static int       catFrameCount   = CAT_FRAME_COUNT;
@@ -33,7 +31,6 @@ static float     catFrameTimer   = 0.0f;
 static float     catFrameSpeed   = 0.15f;  /* seconds per frame */
 
 void initScreensaver(void) {
-    azanFired        = 0;
     catCurrentFrame  = 0;
     catFrameTimer    = 0.0f;
     if (FileExists("assets/cat.png")) {
@@ -42,10 +39,6 @@ void initScreensaver(void) {
         catFrameWidth  = catSheet.width / catFrameCount;
         catFrameHeight = catSheet.height;
     }
-}
-
-void resetScreensaver(void) {
-    azanFired = 0;   /* allow Azan to play again next session */
 }
 
 /* the single waqt moment — live checkPrayerAlerts and the
@@ -71,10 +64,6 @@ void drawScreensaver(AppState *state) {
     int sh = GetScreenHeight();
 
     ClearBackground(BLACK);
-
-    /* waqt azan now fires from checkPrayerAlerts (audio.c),
-       not on screensaver entry — no fake trigger here. */
-    (void)azanFired; /* kept so resetScreensaver stays a valid session hook */
 
     /* Pulsing geometric pattern — rotating lines */
     float t  = (float)GetTime();
@@ -160,10 +149,6 @@ void drawCat(AppState *state) {
     };
 
     DrawTexturePro(catSheet, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
-}
-
-int getCatCurrentFrame(void) {
-    return catCurrentFrame;
 }
 
 

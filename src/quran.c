@@ -445,16 +445,6 @@ Ayah *getAyah(AppState *state, int surahNum, int ayahNum) {
     return NULL;
 }
 
-int getAyahIndex(AppState *state, int surahNum, int ayahNum) {
-    if (!state || !state->ayahs) return -1;
-    for (int i = 0; i < state->totalAyahs; i++) {
-        if (state->ayahs[i].surahNumber == surahNum &&
-            state->ayahs[i].ayahNumber  == ayahNum)
-            return i;
-    }
-    return -1;
-}
-
 int getDailyAyahIndex(int totalAyahs) {
     if (totalAyahs <= 0) totalAyahs = 6236;
     time_t t = time(NULL);

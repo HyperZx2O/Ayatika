@@ -5,7 +5,6 @@
  * Responsibilities:
  *   - Calculate Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha
  *     using the PrayTimes v2.5 algorithm given lat/lng/date
- *   - Detect prohibited prayer time windows
  *   - Provide countdown helpers for the dashboard
  *
  * See member1.md for the full implementation plan.
@@ -189,34 +188,12 @@ void updatePrayerTimes(AppState *state) {
     pt.isha    = roundMinute(isha);
 
     floatToTimeStr(pt.fajr,    pt.fajrStr);
-    floatToTimeStr(pt.sunrise, pt.sunriseStr);
     floatToTimeStr(pt.dhuhr,   pt.dhuhrStr);
     floatToTimeStr(pt.asr,     pt.asrStr);
     floatToTimeStr(pt.maghrib, pt.maghribStr);
     floatToTimeStr(pt.isha,    pt.ishaStr);
 
-    pt.prohibitedActive = isProhibitedTime(&pt);
     state->prayer = pt;
-}
-
-int isProhibitedTime(PrayerTimes *pt) {
-    if (!pt) return 0;
-    float cur = currentHour();
-
-    if (fabsf(cur - pt->sunrise) < 0.25f) {
-        strncpy(pt->prohibitedLabel, "Sunrise — prayer prohibited", 63);
-        return 1;
-    }
-    if (fabsf(cur - pt->dhuhr) < 0.05f) {
-        strncpy(pt->prohibitedLabel, "Solar noon — prayer prohibited", 63);
-        return 1;
-    }
-    if (cur >= pt->maghrib - 1.0f / 6.0f && cur < pt->maghrib) {
-        strncpy(pt->prohibitedLabel, "Pre-sunset — prayer prohibited", 63);
-        return 1;
-    }
-    pt->prohibitedLabel[0] = '\0';
-    return 0;
 }
 
 char *getNextPrayerName(PrayerTimes *pt) {

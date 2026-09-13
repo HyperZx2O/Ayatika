@@ -64,13 +64,10 @@ typedef struct {
     float  maghrib;
     float  isha;
     char   fajrStr[16];
-    char   sunriseStr[16];
     char   dhuhrStr[16];
     char   asrStr[16];
     char   maghribStr[16];
     char   ishaStr[16];
-    int    prohibitedActive;        /* 1 if currently in a prohibited time */
-    char   prohibitedLabel[64];
 } PrayerTimes;
 
 typedef struct {
@@ -123,13 +120,8 @@ typedef struct {
     char           statusMsg[256];
     int            statusTone;        /* 0 = info, 1 = alert (footer tints it) */
 
-    /* Audio (Systems) */
-    int            isPlayingRecitation;
-    int            isNatureSoundOn;
-
     /* Idle / screensaver (Systems) */
     double         lastInputTime;
-    int            catVisible;
 
     /* Search (Systems) */
     char           searchQuery[256];
@@ -180,12 +172,10 @@ int   loadQuranData(AppState *state);
 int   loadHadiths(AppState *state); /* API bulk (Bukhari+Muslim) or bundled fallback */
 void  freeHadiths(AppState *state); /* release texts + array (safe on empty) */
 Ayah *getAyah(AppState *state, int surahNum, int ayahNum);
-int   getAyahIndex(AppState *state, int surahNum, int ayahNum);
 int   getDailyAyahIndex(int totalAyahs);
 
 /* prayer.c */
 void  updatePrayerTimes(AppState *state);
-int   isProhibitedTime(PrayerTimes *pt);
 char *getNextPrayerName(PrayerTimes *pt);
 float getNextPrayerTime(PrayerTimes *pt);
 int   nextPrayerIndex(PrayerTimes *pt); /* 0-4 Fajr..Isha for the slot getNextPrayerTime picks */

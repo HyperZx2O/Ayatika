@@ -87,20 +87,12 @@ void loadTestData(AppState *state) {
     state->prayer.maghrib = 18.0f;
     state->prayer.isha = 19.75f;
     strncpy(state->prayer.fajrStr, "5:00 AM", 15);
-    strncpy(state->prayer.sunriseStr, "6:30 AM", 15);
     strncpy(state->prayer.dhuhrStr, "12:30 PM", 15);
     strncpy(state->prayer.asrStr, "4:00 PM", 15);
     strncpy(state->prayer.maghribStr, "6:00 PM", 15);
     strncpy(state->prayer.ishaStr, "7:45 PM", 15);
 
-    state->prayer.prohibitedActive = 0;
-    state->prayer.prohibitedLabel[0] = '\0';
-
-    state->isPlayingRecitation = 0;
-    state->isNatureSoundOn = 0;
     state->lastInputTime = 0;
-    state->catVisible = 0;
-
     strncpy(state->language, "en", 7);
 }
 

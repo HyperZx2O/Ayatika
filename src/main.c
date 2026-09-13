@@ -64,7 +64,6 @@ int main(void) {
             state.lastInputTime = GetTime();
 
         double idleSeconds = GetTime() - state.lastInputTime;
-        state.catVisible = (idleSeconds > (double)state.idleSeconds);
         /* single idle gate; 0 disables. */
         if (state.idleSeconds > 0 && idleSeconds > (double)state.idleSeconds &&
             state.currentScreen != SCREEN_SCREENSAVER) {
